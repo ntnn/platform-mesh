@@ -125,6 +125,8 @@ github.com/nlepage/go-tarfs v1.2.1 h1:o37+JPA+ajllGKSPfy5+YpsNHDjZnAoyfvf5GsUa+K
 github.com/nlepage/go-tarfs v1.2.1/go.mod h1:rno18mpMy9aEH1IiJVftFsqPyIpwqSUiAOpJYjlV2NA=
 github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260725233055-cdecd7fe8b02 h1:uRhdrruoBVVTMY4E3PxfDouMelehGb1XrpNYr2EqtfU=
 github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260725233055-cdecd7fe8b02/go.mod h1:58muK/c6gOJv3cjtwhed9Mbscr6RbXZJjIj1RlLT6ng=
+github.com/ntnn/multicluster-runtime v0.24.2-0.20260726095807-8edbf3201cf6 h1:o85AMjsMYbuPsmseXIFvi4REf1kQkuVTc0cNu/JsJWg=
+github.com/ntnn/multicluster-runtime v0.24.2-0.20260726095807-8edbf3201cf6/go.mod h1:il5JnZbcx4gNtmROaSm+zrXfO5/jZJQwZp1bTrx0i5g=
 github.com/onsi/ginkgo/v2 v2.28.1 h1:S4hj+HbZp40fNKuLUQOYLDgZLwNUVn19N3Atb98NCyI=
 github.com/onsi/ginkgo/v2 v2.28.1/go.mod h1:CLtbVInNckU3/+gC8LzkGUb9oF+e8W8TdUsxPwvdOgE=
 github.com/onsi/gomega v1.39.1 h1:1IJLAad4zjPn2PsnhH70V4DKRFlrCzGBNrNaru+Vf28=
@@ -283,8 +285,6 @@ sigs.k8s.io/controller-runtime v0.24.1 h1:miPEwrmirImAvgME1L9qebGHrOnGJoVmVdtOU9
 sigs.k8s.io/controller-runtime v0.24.1/go.mod h1:vFkfY5fGt5xAC/sKb8IBFKgWPNKG9OUG29dR8Y2wImw=
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 h1:IpInykpT6ceI+QxKBbEflcR5EXP7sU1kvOlxwZh5txg=
 sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730/go.mod h1:mdzfpAEoE6DHQEN0uh9ZbOCuHbLK5wOm7dK4ctXE9Tg=
-sigs.k8s.io/multicluster-runtime v0.24.1 h1:YlGqqk91ui0/VEXqemPd2+Z4UBmgvS2YwXaj2cItHQI=
-sigs.k8s.io/multicluster-runtime v0.24.1/go.mod h1:4+GrvEeaX0hg5MVZT02JNhF2nKZauyGhifjrkbc7yhc=
 sigs.k8s.io/randfill v1.0.0 h1:JfjMILfT8A6RbawdsK2JXGBR5AQVfd+9TbzrlneTyrU=
 sigs.k8s.io/randfill v1.0.0/go.mod h1:XeLlZ/jmk4i1HRopwe7/aU3H5n1zNUcX6TM94b3QxOY=
 sigs.k8s.io/structured-merge-diff/v6 v6.4.0 h1:qmp2e3ZfFi1/jJbDGpD4mt3wyp6PE1NfKHCYLqgNQJo=

@@ -10,6 +10,9 @@ replace (
 	github.com/kcp-dev/kcp-operator/sdk => github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260725233055-cdecd7fe8b02
 )
 
+// For multi.AsRunnable
+replace sigs.k8s.io/multicluster-runtime => github.com/ntnn/multicluster-runtime v0.24.2-0.20260726095807-8edbf3201cf6
+
 require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
