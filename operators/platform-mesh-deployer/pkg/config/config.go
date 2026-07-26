@@ -22,11 +22,10 @@ import (
 
 // Default per-component labels selecting kubeconfig secrets.
 const (
-	DefaultRootShardLabel        = "deployer.platform-mesh.io/rootshard"
-	DefaultShardLabel            = "deployer.platform-mesh.io/shard"
-	DefaultFrontProxyLabel       = "deployer.platform-mesh.io/frontproxy"
-	DefaultCacheServerLabel      = "deployer.platform-mesh.io/cacheserver"
-	DefaultVirtualWorkspaceLabel = "deployer.platform-mesh.io/virtualworkspace"
+	DefaultRootShardLabel   = "deployer.platform-mesh.io/rootshard"
+	DefaultShardLabel       = "deployer.platform-mesh.io/shards-default"
+	DefaultFrontProxyLabel  = "deployer.platform-mesh.io/frontproxy"
+	DefaultCacheServerLabel = "deployer.platform-mesh.io/cacheserver"
 )
 
 type ProviderConfig struct {
@@ -38,11 +37,10 @@ type ProviderConfig struct {
 	// operators in one process.
 	ControllerNamePrefix string
 
-	RootShardLabel        string
-	ShardGroups           map[string]string // shard group name -> secret label
-	FrontProxyLabel       string
-	CacheServerLabel      string
-	VirtualWorkspaceLabel string
+	RootShardLabel   string
+	ShardGroups      map[string]string // shard group name -> secret label
+	FrontProxyLabel  string
+	CacheServerLabel string
 }
 
 type OperatorConfig struct {
@@ -52,13 +50,12 @@ type OperatorConfig struct {
 func NewOperatorConfig() OperatorConfig {
 	return OperatorConfig{
 		Provider: ProviderConfig{
-			Namespace:             "platform-mesh-system",
-			KubeconfigSecretKey:   "kubeconfig",
-			RootShardLabel:        DefaultRootShardLabel,
-			ShardGroups:           map[string]string{"default": DefaultShardLabel},
-			FrontProxyLabel:       DefaultFrontProxyLabel,
-			CacheServerLabel:      DefaultCacheServerLabel,
-			VirtualWorkspaceLabel: DefaultVirtualWorkspaceLabel,
+			Namespace:           "platform-mesh-system",
+			KubeconfigSecretKey: "kubeconfig",
+			RootShardLabel:      DefaultRootShardLabel,
+			ShardGroups:         map[string]string{"default": DefaultShardLabel},
+			FrontProxyLabel:     DefaultFrontProxyLabel,
+			CacheServerLabel:    DefaultCacheServerLabel,
 		},
 	}
 }
@@ -70,5 +67,4 @@ func (c *OperatorConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringToStringVar(&c.Provider.ShardGroups, "provider-shard-groups", c.Provider.ShardGroups, "Shard group name to secret label mapping")
 	fs.StringVar(&c.Provider.FrontProxyLabel, "provider-frontproxy-label", c.Provider.FrontProxyLabel, "Label selecting front proxy kubeconfig secrets")
 	fs.StringVar(&c.Provider.CacheServerLabel, "provider-cacheserver-label", c.Provider.CacheServerLabel, "Label selecting cache server kubeconfig secrets")
-	fs.StringVar(&c.Provider.VirtualWorkspaceLabel, "provider-virtualworkspace-label", c.Provider.VirtualWorkspaceLabel, "Label selecting virtual workspace kubeconfig secrets")
 }

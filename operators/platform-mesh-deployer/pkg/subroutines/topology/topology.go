@@ -67,6 +67,9 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 	if err := s.reconcileCacheServer(ctx, pm); err != nil {
 		return subroutines.Result{}, err
 	}
+	if err := s.reconcileVirtualWorkspaces(ctx, pm); err != nil {
+		return subroutines.Result{}, err
+	}
 	return subroutines.OK(), nil
 }
 

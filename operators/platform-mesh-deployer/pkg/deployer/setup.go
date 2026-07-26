@@ -36,11 +36,10 @@ type Config struct {
 	Log      *logger.Logger
 	Resolver ocm.Resolver
 
-	RootShardProvider        multicluster.Provider
-	ShardProviders           map[string]multicluster.Provider // keyed by ShardGroup.Name
-	FrontProxyProvider       multicluster.Provider
-	CacheServerProvider      multicluster.Provider
-	VirtualWorkspaceProvider multicluster.Provider
+	RootShardProvider   multicluster.Provider
+	ShardProviders      map[string]multicluster.Provider // keyed by ShardGroup.Name
+	FrontProxyProvider  multicluster.Provider
+	CacheServerProvider multicluster.Provider
 }
 
 // Setup registers the deployer controllers on the manager.
@@ -58,10 +57,9 @@ func Setup(mgr mcmanager.Manager, _ Config) error {
 // AddProviders adds the configured [multicluster.Provider] to the [multi.Provider].
 func AddProviders(mp *multi.Provider, mgr mcmanager.Manager, cfg Config) error {
 	entries := map[string]multicluster.Provider{
-		components.RootShard:        cfg.RootShardProvider,
-		components.FrontProxy:       cfg.FrontProxyProvider,
-		components.CacheServer:      cfg.CacheServerProvider,
-		components.VirtualWorkspace: cfg.VirtualWorkspaceProvider,
+		components.RootShard:   cfg.RootShardProvider,
+		components.FrontProxy:  cfg.FrontProxyProvider,
+		components.CacheServer: cfg.CacheServerProvider,
 	}
 	for group, provider := range cfg.ShardProviders {
 		entries[components.Shard(group)] = provider

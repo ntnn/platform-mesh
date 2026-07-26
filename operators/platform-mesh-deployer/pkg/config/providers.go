@@ -54,6 +54,5 @@ func (c OperatorConfig) DeployerConfig(mgr mcmanager.Manager, log *logger.Logger
 		ShardProviders:      shardProviders,
 		FrontProxyProvider:  newProvider(components.FrontProxy, c.Provider.FrontProxyLabel),
 		CacheServerProvider: newProvider(components.CacheServer, c.Provider.CacheServerLabel),
-		VirtualWorkspaceProvider: newProvider(components.VirtualWorkspace, c.Provider.VirtualWorkspaceLabel),
 	}
 }

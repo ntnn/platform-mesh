@@ -232,3 +232,45 @@ func TestReconcileCacheServer(t *testing.T) {
 	assert.Equal(t, components.CacheServer, cs.Labels[topology.LabelComponent])
 	assert.Equal(t, "west", cs.Labels[topology.LabelCluster])
 }
+
+func TestReconcileVirtualWorkspace(t *testing.T) {
+	pm := platformMesh()
+	pm.Spec.Topology.RootShard.VirtualWorkspaces = pmdeployerv1alpha1.VirtualWorkspaceSpec{
+		Mode: pmdeployerv1alpha1.VirtualWorkspaceModeStandalone,
+		Exposure: pmdeployerv1alpha1.Exposure{
+			HostnameTemplate: `"vw." + platformMesh + ".example.com"`,
+			Port:             443,
+		},
+	}
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	reg := clusters.NewRegistry()
+	engage(t, reg, "rootshard#customer-a--east")
+
+	sub := topology.New(cl, reg)
+	_, err := sub.Process(t.Context(), pm)
+	require.NoError(t, err)
+
+	vw := &operatorv1alpha1.VirtualWorkspace{}
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "root-east"}, vw))
+	require.NotNil(t, vw.Spec.Target.RootShardRef)
+	assert.Equal(t, "root-east", vw.Spec.Target.RootShardRef.Name)
+	assert.Equal(t, "vw.customer-a.example.com", vw.Spec.External.Hostname)
+	assert.Equal(t, uint32(443), vw.Spec.External.Port)
+	assert.Equal(t, components.VirtualWorkspace, vw.Labels[topology.LabelComponent])
+	assert.Equal(t, "east", vw.Labels[topology.LabelCluster])
+}
+
+func TestReconcileVirtualWorkspaceEmbeddedSkipped(t *testing.T) {
+	pm := platformMesh() // root shard VirtualWorkspaces defaults to embedded (mode unset)
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	reg := clusters.NewRegistry()
+	engage(t, reg, "rootshard#customer-a--east")
+
+	sub := topology.New(cl, reg)
+	_, err := sub.Process(t.Context(), pm)
+	require.NoError(t, err)
+
+	list := &operatorv1alpha1.VirtualWorkspaceList{}
+	require.NoError(t, cl.List(t.Context(), list))
+	assert.Empty(t, list.Items)
+}
