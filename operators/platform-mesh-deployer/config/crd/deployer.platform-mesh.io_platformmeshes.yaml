@@ -3983,18 +3983,6 @@ spec:
                       cacheServerRef:
                         description: CacheServerRef references a cache server by name.
                         type: string
-                      etcd:
-                        description: Etcd configures the etcd cluster backing the
-                          root shard.
-                        properties:
-                          replicas:
-                            description: Replicas is the number of etcd members.
-                            format: int32
-                            type: integer
-                          values:
-                            description: Values holds additional druid Etcd configuration.
-                            x-kubernetes-preserve-unknown-fields: true
-                        type: object
                       exposure:
                         description: Exposure describes how the root shard front proxy
                           endpoint is exposed.
@@ -9884,18 +9872,6 @@ spec:
                             CacheServerRef references a cache server by name. Defaults to the sole
                             defined cache server.
                           type: string
-                        etcd:
-                          description: Etcd configures the etcd cluster backing the
-                            shards of this group.
-                          properties:
-                            replicas:
-                              description: Replicas is the number of etcd members.
-                              format: int32
-                              type: integer
-                            values:
-                              description: Values holds additional druid Etcd configuration.
-                              x-kubernetes-preserve-unknown-fields: true
-                          type: object
                         exposure:
                           description: |-
                             Exposure describes how the shard endpoint is exposed. Optional, shards

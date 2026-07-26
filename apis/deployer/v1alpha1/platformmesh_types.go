@@ -83,17 +83,6 @@ type IngressStack struct {
 	Values *apiextensionsv1.JSON `json:"values,omitempty"`
 }
 
-// EtcdSpec configures the etcd-druid managed etcd cluster backing a shard group.
-type EtcdSpec struct {
-	// Replicas is the number of etcd members.
-	// +optional
-	Replicas *int32 `json:"replicas,omitempty"`
-
-	// Values holds additional druid Etcd configuration.
-	// +optional
-	Values *apiextensionsv1.JSON `json:"values,omitempty"`
-}
-
 // VirtualWorkspaceMode is the deployment mode of the virtual workspaces server.
 // +kubebuilder:validation:Enum=Embedded;Standalone
 type VirtualWorkspaceMode string
@@ -132,10 +121,6 @@ type ShardGroup struct {
 	// Template is merged onto the rendered Shard resources.
 	// +optional
 	Template *operatorv1alpha1.ShardTemplateSpec `json:"template,omitempty"`
-
-	// Etcd configures the etcd cluster backing the shards of this group.
-	// +optional
-	Etcd EtcdSpec `json:"etcd,omitempty"`
 
 	// CacheServerRef references a cache server by name. Defaults to the sole
 	// defined cache server.
@@ -197,10 +182,6 @@ type RootShard struct {
 	// Template is merged onto the rendered RootShard resources.
 	// +optional
 	Template *operatorv1alpha1.RootShardTemplateSpec `json:"template,omitempty"`
-
-	// Etcd configures the etcd cluster backing the root shard.
-	// +optional
-	Etcd EtcdSpec `json:"etcd,omitempty"`
 
 	// CacheServerRef references a cache server by name.
 	// +optional
