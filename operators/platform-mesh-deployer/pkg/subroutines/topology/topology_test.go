@@ -203,3 +203,32 @@ func TestReconcileFrontProxy(t *testing.T) {
 	assert.Equal(t, components.FrontProxy, fp.Labels[topology.LabelComponent])
 	assert.Equal(t, "west", fp.Labels[topology.LabelCluster])
 }
+
+func TestReconcileCacheServer(t *testing.T) {
+	pm := platformMesh()
+	pm.Spec.Topology.CacheServer = &pmdeployerv1alpha1.CacheServer{
+		Name: "global",
+		Template: &operatorv1alpha1.CacheServerTemplateSpec{
+			Etcd: &operatorv1alpha1.EtcdConfig{
+				Endpoints: []string{`"https://cache-etcd-" + platformMesh + ".pm:2379"`},
+				Prefix:    `"/" + platformMesh + "/cache"`,
+			},
+		},
+	}
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	reg := clusters.NewRegistry()
+	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "cacheserver#customer-a--west")
+
+	sub := topology.New(cl, reg)
+	_, err := sub.Process(t.Context(), pm)
+	require.NoError(t, err)
+
+	cs := &operatorv1alpha1.CacheServer{}
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "global-west"}, cs))
+	require.NotNil(t, cs.Spec.Etcd)
+	assert.Equal(t, []string{"https://cache-etcd-customer-a.pm:2379"}, cs.Spec.Etcd.Endpoints)
+	assert.Equal(t, "/customer-a/cache", cs.Spec.Etcd.Prefix)
+	assert.Equal(t, components.CacheServer, cs.Labels[topology.LabelComponent])
+	assert.Equal(t, "west", cs.Labels[topology.LabelCluster])
+}
