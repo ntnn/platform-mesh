@@ -26,12 +26,17 @@ import (
 
 	platformmeshcontext "go.platform-mesh.io/golang-commons/context"
 	"go.platform-mesh.io/golang-commons/traces"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/deployer"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 
 	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
+	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
+	"sigs.k8s.io/multicluster-runtime/providers/kubeconfig"
+	"sigs.k8s.io/multicluster-runtime/providers/multi"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 )
@@ -85,9 +90,9 @@ func RunController(_ *cobra.Command, _ []string) { // coverage-ignore
 		}
 	}
 
-	// nil provider = local cluster only; the multicluster kubeconfig
-	// provider is wired in a later phase.
-	mgr, err := mcmanager.New(restCfg, nil, mcmanager.Options{
+	provider := multi.New(multi.Options{})
+
+	mgr, err := mcmanager.New(restCfg, provider, mcmanager.Options{
 		Scheme: scheme,
 		Metrics: metricsserver.Options{
 			BindAddress:   defaultCfg.Metrics.BindAddress,
@@ -103,6 +108,33 @@ func RunController(_ *cobra.Command, _ []string) { // coverage-ignore
 	})
 	if err != nil {
 		log.Fatal().Err(err).Msg("unable to start manager")
+	}
+
+	newProvider := func(component, label string) multicluster.Provider {
+		return multi.AsRunnable(kubeconfig.New(kubeconfig.Options{
+			Namespace:             operatorCfg.Provider.Namespace,
+			KubeconfigSecretLabel: label,
+			KubeconfigSecretKey:   operatorCfg.Provider.KubeconfigSecretKey,
+			ControllerName:        "kubeconfig-" + component,
+		}), mgr)
+	}
+
+	cfg := deployer.Config{
+		Log:                      log,
+		Resolver:                 ocm.New(),
+		RootShardProvider:        newProvider(deployer.ComponentRootShard, operatorCfg.Provider.RootShardLabel),
+		ShardProvider:            newProvider(deployer.ComponentShard, operatorCfg.Provider.ShardLabel),
+		FrontProxyProvider:       newProvider(deployer.ComponentFrontProxy, operatorCfg.Provider.FrontProxyLabel),
+		CacheServerProvider:      newProvider(deployer.ComponentCacheServer, operatorCfg.Provider.CacheServerLabel),
+		VirtualWorkspaceProvider: newProvider(deployer.ComponentVirtualWorkspace, operatorCfg.Provider.VirtualWorkspaceLabel),
+	}
+
+	if err := deployer.AddProviders(provider, mgr, cfg); err != nil {
+		log.Fatal().Err(err).Msg("unable to add providers")
+	}
+
+	if err := deployer.Setup(mgr, cfg); err != nil {
+		log.Fatal().Err(err).Msg("unable to set up controllers")
 	}
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
