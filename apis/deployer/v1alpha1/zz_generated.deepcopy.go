@@ -619,13 +619,7 @@ func (in *Topology) DeepCopyInto(out *Topology) {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}
 	}
-	if in.FrontProxies != nil {
-		in, out := &in.FrontProxies, &out.FrontProxies
-		*out = make([]FrontProxy, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
-	}
+	in.FrontProxy.DeepCopyInto(&out.FrontProxy)
 	if in.CacheServers != nil {
 		in, out := &in.CacheServers, &out.CacheServers
 		*out = make([]CacheServer, len(*in))

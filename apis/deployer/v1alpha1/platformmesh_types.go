@@ -206,11 +206,8 @@ type Topology struct {
 	// +listMapKey=name
 	ShardGroups []ShardGroup `json:"shardGroups,omitempty"`
 
-	// FrontProxies are the kcp front proxies.
-	// +optional
-	// +listType=map
-	// +listMapKey=name
-	FrontProxies []FrontProxy `json:"frontProxies,omitempty"`
+	// FrontProxy is the kcp front proxy.
+	FrontProxy FrontProxy `json:"frontProxy"`
 
 	// CacheServers are the kcp cache servers. If none is defined, the root
 	// shard's embedded cache is used.
