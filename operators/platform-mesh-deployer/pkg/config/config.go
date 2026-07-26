@@ -33,8 +33,13 @@ type ProviderConfig struct {
 	Namespace           string
 	KubeconfigSecretKey string
 
+	// ControllerNamePrefix is added to each kubeconfig providers'
+	// controller to disambiguate when running multiple deployer
+	// operators in one process.
+	ControllerNamePrefix string
+
 	RootShardLabel        string
-	ShardLabel            string
+	ShardGroups           map[string]string // shard group name -> secret label
 	FrontProxyLabel       string
 	CacheServerLabel      string
 	VirtualWorkspaceLabel string
@@ -50,7 +55,7 @@ func NewOperatorConfig() OperatorConfig {
 			Namespace:             "platform-mesh-system",
 			KubeconfigSecretKey:   "kubeconfig",
 			RootShardLabel:        DefaultRootShardLabel,
-			ShardLabel:            DefaultShardLabel,
+			ShardGroups:           map[string]string{"default": DefaultShardLabel},
 			FrontProxyLabel:       DefaultFrontProxyLabel,
 			CacheServerLabel:      DefaultCacheServerLabel,
 			VirtualWorkspaceLabel: DefaultVirtualWorkspaceLabel,
@@ -62,7 +67,7 @@ func (c *OperatorConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.Provider.Namespace, "provider-namespace", c.Provider.Namespace, "Namespace to watch for kubeconfig secrets")
 	fs.StringVar(&c.Provider.KubeconfigSecretKey, "provider-kubeconfig-secret-key", c.Provider.KubeconfigSecretKey, "Key within the secret containing the kubeconfig")
 	fs.StringVar(&c.Provider.RootShardLabel, "provider-rootshard-label", c.Provider.RootShardLabel, "Label selecting root shard kubeconfig secrets")
-	fs.StringVar(&c.Provider.ShardLabel, "provider-shard-label", c.Provider.ShardLabel, "Label selecting shard kubeconfig secrets")
+	fs.StringToStringVar(&c.Provider.ShardGroups, "provider-shard-groups", c.Provider.ShardGroups, "Shard group name to secret label mapping")
 	fs.StringVar(&c.Provider.FrontProxyLabel, "provider-frontproxy-label", c.Provider.FrontProxyLabel, "Label selecting front proxy kubeconfig secrets")
 	fs.StringVar(&c.Provider.CacheServerLabel, "provider-cacheserver-label", c.Provider.CacheServerLabel, "Label selecting cache server kubeconfig secrets")
 	fs.StringVar(&c.Provider.VirtualWorkspaceLabel, "provider-virtualworkspace-label", c.Provider.VirtualWorkspaceLabel, "Label selecting virtual workspace kubeconfig secrets")

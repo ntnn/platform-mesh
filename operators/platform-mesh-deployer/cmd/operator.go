@@ -34,8 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
-	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
-	"sigs.k8s.io/multicluster-runtime/providers/kubeconfig"
 	"sigs.k8s.io/multicluster-runtime/providers/multi"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -110,24 +108,7 @@ func RunController(_ *cobra.Command, _ []string) { // coverage-ignore
 		log.Fatal().Err(err).Msg("unable to start manager")
 	}
 
-	newProvider := func(component, label string) multicluster.Provider {
-		return multi.AsRunnable(kubeconfig.New(kubeconfig.Options{
-			Namespace:             operatorCfg.Provider.Namespace,
-			KubeconfigSecretLabel: label,
-			KubeconfigSecretKey:   operatorCfg.Provider.KubeconfigSecretKey,
-			ControllerName:        "kubeconfig-" + component,
-		}), mgr)
-	}
-
-	cfg := deployer.Config{
-		Log:                      log,
-		Resolver:                 ocm.New(),
-		RootShardProvider:        newProvider(deployer.ComponentRootShard, operatorCfg.Provider.RootShardLabel),
-		ShardProvider:            newProvider(deployer.ComponentShard, operatorCfg.Provider.ShardLabel),
-		FrontProxyProvider:       newProvider(deployer.ComponentFrontProxy, operatorCfg.Provider.FrontProxyLabel),
-		CacheServerProvider:      newProvider(deployer.ComponentCacheServer, operatorCfg.Provider.CacheServerLabel),
-		VirtualWorkspaceProvider: newProvider(deployer.ComponentVirtualWorkspace, operatorCfg.Provider.VirtualWorkspaceLabel),
-	}
+	cfg := operatorCfg.DeployerConfig(mgr, log, ocm.New())
 
 	if err := deployer.AddProviders(provider, mgr, cfg); err != nil {
 		log.Fatal().Err(err).Msg("unable to add providers")

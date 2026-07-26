@@ -31,11 +31,14 @@ import (
 // The prefixes passed to the [multi.Provider] for each [multicluster.Provider] of each component.
 const (
 	ComponentRootShard        = "rootshard"
-	ComponentShard            = "shard"
 	ComponentFrontProxy       = "frontproxy"
 	ComponentCacheServer      = "cacheserver"
 	ComponentVirtualWorkspace = "virtualworkspace"
+	ShardComponentPrefix      = "shards-"
 )
+
+// ShardComponent returns the multi-provider prefix for a shard group.
+func ShardComponent(group string) string { return ShardComponentPrefix + group }
 
 // Config contains the necessary configuration to setup the deployer controllers with a manager.
 type Config struct {
@@ -43,7 +46,7 @@ type Config struct {
 	Resolver ocm.Resolver
 
 	RootShardProvider        multicluster.Provider
-	ShardProvider            multicluster.Provider
+	ShardProviders           map[string]multicluster.Provider // keyed by ShardGroup.Name
 	FrontProxyProvider       multicluster.Provider
 	CacheServerProvider      multicluster.Provider
 	VirtualWorkspaceProvider multicluster.Provider
@@ -58,10 +61,12 @@ func Setup(_ mcmanager.Manager, _ Config) error {
 func AddProviders(mp *multi.Provider, mgr mcmanager.Manager, cfg Config) error {
 	entries := map[string]multicluster.Provider{
 		ComponentRootShard:        cfg.RootShardProvider,
-		ComponentShard:            cfg.ShardProvider,
 		ComponentFrontProxy:       cfg.FrontProxyProvider,
 		ComponentCacheServer:      cfg.CacheServerProvider,
 		ComponentVirtualWorkspace: cfg.VirtualWorkspaceProvider,
+	}
+	for group, provider := range cfg.ShardProviders {
+		entries[ShardComponent(group)] = provider
 	}
 
 	for name, provider := range entries {

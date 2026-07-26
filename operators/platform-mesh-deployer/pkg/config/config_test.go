@@ -29,7 +29,7 @@ func TestNewOperatorConfig(t *testing.T) {
 
 	assert.Equal(t, "platform-mesh-system", cfg.Provider.Namespace)
 	assert.Equal(t, "kubeconfig", cfg.Provider.KubeconfigSecretKey)
-	assert.Equal(t, DefaultShardLabel, cfg.Provider.ShardLabel)
+	assert.Equal(t, DefaultShardLabel, cfg.Provider.ShardGroups["default"])
 }
 
 func TestAddFlags(t *testing.T) {
@@ -48,13 +48,13 @@ func TestAddFlags(t *testing.T) {
 			args: []string{
 				"--provider-namespace=other-ns",
 				"--provider-kubeconfig-secret-key=value",
-				"--provider-shard-label=example.com/shard",
+				"--provider-shard-groups=eu=example.com/shard-eu",
 			},
 			want: func() OperatorConfig {
 				c := NewOperatorConfig()
 				c.Provider.Namespace = "other-ns"
 				c.Provider.KubeconfigSecretKey = "value"
-				c.Provider.ShardLabel = "example.com/shard"
+				c.Provider.ShardGroups = map[string]string{"eu": "example.com/shard-eu"}
 				return c
 			}(),
 		},
