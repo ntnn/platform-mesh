@@ -311,6 +311,11 @@ type PlatformMeshStatus struct {
 	// ShardAssignments is the shard to cluster assignment table.
 	// +optional
 	ShardAssignments []ShardAssignment `json:"shardAssignments,omitempty"`
+
+	// RootShardCluster is the cluster the root shard is deployed to.
+	// This field is only used to ensure that the root cluster provider does not yield more than one cluster.
+	// +optional
+	RootShardCluster string `json:"rootShardCluster,omitempty"`
 }
 
 // PlatformMesh is the schema for a Platform Mesh installation managed by the

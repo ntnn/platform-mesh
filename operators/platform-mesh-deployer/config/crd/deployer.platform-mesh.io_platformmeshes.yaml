@@ -1947,7 +1947,7 @@ spec:
                       type: object
                       x-kubernetes-validations:
                       - message: seedRef is not supported in v1alpha1 (see kcp-dev/kcp#4055)
-                        rule: '!has(self.seedRef) || self.seedRef == '''''
+                        rule: '!has(self.seedRef) || self.seedRef == ”'
                     type: array
                     x-kubernetes-list-map-keys:
                     - name
@@ -12273,6 +12273,11 @@ spec:
                 description: |-
                   ResolvedVersion is the resolved component version of the aggregate
                   component.
+                type: string
+              rootShardCluster:
+                description: |-
+                  RootShardCluster is the cluster the root shard is deployed to.
+                  This field is only used to ensure that the root cluster provider does not yield more than one cluster.
                 type: string
               shardAssignments:
                 description: ShardAssignments is the shard to cluster assignment table.
