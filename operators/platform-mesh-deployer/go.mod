@@ -1,6 +1,6 @@
 module go.platform-mesh.io/platform-mesh-deployer
 
-go 1.26.3
+go 1.26.4
 
 replace go.platform-mesh.io/apis => ../../apis
 
