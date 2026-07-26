@@ -60,12 +60,16 @@ tasks:
       - task: fmt
       - task: tools:lint
   test:
-    desc: Run unit tests.
     cmds:
-      - go test -count=1 ./...
+      - go test -count=1 . ./pkg/... ./cmd/...
+
+  # The deployer has no envtest tests; integration is the kind e2e (test/e2e),
+  # which needs a running kind cluster with the prereqs installed (cert-manager,
+  # etcd, kcp-operator). The kind provisioning task lands with the e2e harness.
   test-e2e:
     cmds:
-      - echo "no e2e tests defined yet"
+      - go test -count=1 ./test/e2e/... {{.ADDITIONAL_COMMAND_ARGS}}
+
   cover:
     cmds:
-      - go test -count=1 ./... -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
+      - go test -count=1 . ./pkg/... ./cmd/... -coverprofile=./cover.out -covermode=atomic -coverpkg=./...
