@@ -63,12 +63,14 @@ tasks:
     cmds:
       - go test -count=1 . ./pkg/... ./cmd/...
 
-  # The deployer has no envtest tests; integration is the kind e2e (test/e2e),
-  # which needs a running kind cluster with the prereqs installed (cert-manager,
-  # etcd, kcp-operator). The kind provisioning task lands with the e2e harness.
   test-e2e:
+    vars:
+      KCP_OPERATOR_IMAGE: '{{.KCP_OPERATOR_IMAGE | default "ghcr.io/ntnn/kcp-operator:split"}}'
+    env:
+      KCP_OPERATOR_IMAGE: '{{.KCP_OPERATOR_IMAGE}}'
     cmds:
-      - go test -count=1 ./test/e2e/... {{.ADDITIONAL_COMMAND_ARGS}}
+      - docker pull {{.KCP_OPERATOR_IMAGE}}
+      - go test -count=1 -timeout 40m ./test/e2e/... {{.ADDITIONAL_COMMAND_ARGS}}
 
   cover:
     cmds:
