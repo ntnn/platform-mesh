@@ -6,8 +6,8 @@ replace go.platform-mesh.io/apis => ../../apis
 
 // Phase 0 template mirror types live in the mode-split fork until merged upstream and the sdk is tagged.
 replace (
-	github.com/kcp-dev/kcp-operator => github.com/ntnn/kcp-operator v0.8.1-0.20260725233055-cdecd7fe8b02
-	github.com/kcp-dev/kcp-operator/sdk => github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260725233055-cdecd7fe8b02
+	github.com/kcp-dev/kcp-operator => github.com/ntnn/kcp-operator v0.8.1-0.20260726154422-be62fa798885
+	github.com/kcp-dev/kcp-operator/sdk => github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260726154422-be62fa798885
 )
 
 // For multi.AsRunnable

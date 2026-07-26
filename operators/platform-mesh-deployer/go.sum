@@ -129,8 +129,8 @@ github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 h1:C3w9PqII01/Oq
 github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822/go.mod h1:+n7T8mK8HuQTcFwEeznm/DIxMOiR9yIdICNftLE1DvQ=
 github.com/nlepage/go-tarfs v1.2.1 h1:o37+JPA+ajllGKSPfy5+YpsNHDjZnAoyfvf5GsUa+Ks=
 github.com/nlepage/go-tarfs v1.2.1/go.mod h1:rno18mpMy9aEH1IiJVftFsqPyIpwqSUiAOpJYjlV2NA=
-github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260725233055-cdecd7fe8b02 h1:uRhdrruoBVVTMY4E3PxfDouMelehGb1XrpNYr2EqtfU=
-github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260725233055-cdecd7fe8b02/go.mod h1:58muK/c6gOJv3cjtwhed9Mbscr6RbXZJjIj1RlLT6ng=
+github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260726154422-be62fa798885 h1:UG0CS/UEGph+mMVCYPZy5Cp8uCMbn6qUixZA9DCxJi4=
+github.com/ntnn/kcp-operator/sdk v0.8.1-0.20260726154422-be62fa798885/go.mod h1:58muK/c6gOJv3cjtwhed9Mbscr6RbXZJjIj1RlLT6ng=
 github.com/ntnn/multicluster-runtime v0.24.2-0.20260726095807-8edbf3201cf6 h1:o85AMjsMYbuPsmseXIFvi4REf1kQkuVTc0cNu/JsJWg=
 github.com/ntnn/multicluster-runtime v0.24.2-0.20260726095807-8edbf3201cf6/go.mod h1:il5JnZbcx4gNtmROaSm+zrXfO5/jZJQwZp1bTrx0i5g=
 github.com/onsi/ginkgo/v2 v2.28.1 h1:S4hj+HbZp40fNKuLUQOYLDgZLwNUVn19N3Atb98NCyI=
