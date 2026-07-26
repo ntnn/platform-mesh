@@ -1,0 +1,64 @@
+/*
+Copyright The Platform Mesh Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package e2e
+
+import (
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+
+	"go.platform-mesh.io/platform-mesh-deployer/test/e2e/suite"
+
+	appsv1 "k8s.io/api/apps/v1"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	deployv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/deploy/v1alpha1"
+	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
+)
+
+// TestConfigWorkloadCluster runs the full pipeline against two clusters.
+func TestConfigWorkloadCluster(t *testing.T) {
+	env := suite.Start(t, 1)
+	workload := env.Workloads[0]
+
+	env.EngageWorkload(t, "customer-a", "wl0", workload, "rootshard", "frontproxy", "cacheserver", "shards-default")
+
+	pm := platformMesh()
+	require.NoError(t, env.Config.Client.Create(t.Context(), pm))
+
+	rootShard := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: "root-wl0"}
+
+	// Config plane: the deployer creates the admin CR and the config kcp-operator
+	// compiles it.
+	require.Eventually(t, func() bool {
+		return env.Config.Client.Get(t.Context(), rootShard, &operatorv1alpha1.RootShard{}) == nil
+	}, 5*time.Minute, 2*time.Second, "deployer did not create the RootShard admin CR")
+	require.Eventually(t, func() bool {
+		return env.Config.Client.Get(t.Context(), rootShard, &deployv1alpha1.CompiledRootShard{}) == nil
+	}, 8*time.Minute, 5*time.Second, "config kcp-operator did not compile the RootShard")
+
+	// Workload cluster: the deployer copied the compiled CR here and the workload
+	// kcp-operator rendered the Deployment from it.
+	require.Eventually(t, func() bool {
+		return workload.Client.Get(t.Context(), rootShard, &deployv1alpha1.CompiledRootShard{}) == nil
+	}, 3*time.Minute, 5*time.Second, "deployer did not copy the CompiledRootShard to the workload cluster")
+	require.Eventually(t, func() bool {
+		key := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: "root-wl0-kcp"}
+		return workload.Client.Get(t.Context(), key, &appsv1.Deployment{}) == nil
+	}, 3*time.Minute, 5*time.Second, "workload kcp-operator did not render the root shard Deployment")
+}
