@@ -21,6 +21,7 @@ import (
 	"context"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/ready"
 	"go.platform-mesh.io/subroutines"
 	"go.platform-mesh.io/subroutines/conditions"
@@ -30,7 +31,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	mcreconcile "sigs.k8s.io/multicluster-runtime/pkg/reconcile"
 )
@@ -40,9 +43,10 @@ const platformMeshReconcilerName = "PlatformMeshReconciler"
 // PlatformMeshReconciler reconciles PlatformMesh resources.
 type PlatformMeshReconciler struct {
 	lifecycle *lifecycle.Lifecycle
+	registry  *clusters.Registry
 }
 
-func NewPlatformMeshReconciler(mgr mcmanager.Manager) *PlatformMeshReconciler {
+func NewPlatformMeshReconciler(mgr mcmanager.Manager, registry *clusters.Registry) *PlatformMeshReconciler {
 	subs := []subroutines.Subroutine{
 		ready.New(),
 	}
@@ -50,15 +54,41 @@ func NewPlatformMeshReconciler(mgr mcmanager.Manager) *PlatformMeshReconciler {
 		return &pmdeployerv1alpha1.PlatformMesh{}
 	}, subs...).WithConditions(conditions.NewManager())
 
-	return &PlatformMeshReconciler{lifecycle: lc}
+	return &PlatformMeshReconciler{lifecycle: lc, registry: registry}
 }
 
 func (r *PlatformMeshReconciler) SetupWithManager(mgr mcmanager.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr.GetLocalManager()).
+	local := mgr.GetLocalManager()
+	return ctrl.NewControllerManagedBy(local).
 		For(&pmdeployerv1alpha1.PlatformMesh{}).
+		WatchesRawSource(source.Channel(
+			r.registry.Events(),
+			handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshByName(local.GetClient())),
+		)).
 		Named(platformMeshReconcilerName).
 		WithOptions(controller.Options{SkipNameValidation: ptr.To(true)}).
 		Complete(r)
+}
+
+// enqueuePlatformMeshByName maps a signal from the deployer's
+// clusters.Registry to a new request for the PlatformMesh with
+// a matching name.
+func enqueuePlatformMeshByName(c ctrlruntimeclient.Client) handler.MapFunc {
+	return func(ctx context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
+		name := obj.GetName()
+		list := &pmdeployerv1alpha1.PlatformMeshList{}
+		if err := c.List(ctx, list); err != nil {
+			return nil
+		}
+		var reqs []reconcile.Request
+		for i := range list.Items {
+			if list.Items[i].Name != name {
+				continue
+			}
+			reqs = append(reqs, reconcile.Request{NamespacedName: ctrlruntimeclient.ObjectKeyFromObject(&list.Items[i])})
+		}
+		return reqs
+	}
 }
 
 func (r *PlatformMeshReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {

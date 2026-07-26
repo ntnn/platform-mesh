@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"go.platform-mesh.io/golang-commons/logger"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 
@@ -55,7 +56,11 @@ type Config struct {
 
 // Setup registers the deployer controllers on the manager.
 func Setup(mgr mcmanager.Manager, _ Config) error {
-	if err := controller.NewPlatformMeshReconciler(mgr).SetupWithManager(mgr); err != nil {
+	registry := clusters.NewRegistry()
+	if err := mgr.Add(registry); err != nil {
+		return fmt.Errorf("adding cluster registry: %w", err)
+	}
+	if err := controller.NewPlatformMeshReconciler(mgr, registry).SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("setting up PlatformMesh reconciler: %w", err)
 	}
 	return nil
