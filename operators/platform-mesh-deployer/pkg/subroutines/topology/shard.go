@@ -42,7 +42,7 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployerv1alpha1
 		component := components.Shard(group.Name)
 		engaged := s.registry.ClustersFor(pm.Name, component)
 
-		engagedIDs := map[string]struct{}{}
+		desired := map[string]struct{}{}
 		for _, cl := range engaged {
 			// "<group>-<clusterID>": the admin CR name teardown matches back to a cluster.
 			name := group.Name + "-" + cl.ClusterID
@@ -57,9 +57,9 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployerv1alpha1
 			}); err != nil {
 				return err
 			}
-			engagedIDs[cl.ClusterID] = struct{}{}
+			desired[name] = struct{}{}
 		}
-		if err := s.teardown(ctx, pm, component, &operatorv1alpha1.ShardList{}, engagedIDs); err != nil {
+		if err := s.teardown(ctx, pm, component, &operatorv1alpha1.ShardList{}, desired); err != nil {
 			return err
 		}
 	}

@@ -99,8 +99,8 @@ func (s *Subroutine) apply(ctx context.Context, pm *pmdeployerv1alpha1.PlatformM
 	return err
 }
 
-// teardown deletes admin CRs of the component whose cluster is no longer engaged.
-func (s *Subroutine) teardown(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, component string, list ctrlruntimeclient.ObjectList, engaged map[string]struct{}) error {
+// teardown deletes admin CRs of the deleted component identified by their name.
+func (s *Subroutine) teardown(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, component string, list ctrlruntimeclient.ObjectList, desired map[string]struct{}) error {
 	if err := s.client.List(ctx, list,
 		ctrlruntimeclient.InNamespace(pm.Namespace),
 		ctrlruntimeclient.MatchingLabels{LabelPlatformMesh: pm.Name, LabelComponent: component},
@@ -113,7 +113,7 @@ func (s *Subroutine) teardown(ctx context.Context, pm *pmdeployerv1alpha1.Platfo
 	}
 	for _, item := range items {
 		obj := item.(ctrlruntimeclient.Object)
-		if _, ok := engaged[obj.GetLabels()[LabelCluster]]; ok {
+		if _, ok := desired[obj.GetName()]; ok {
 			continue
 		}
 		if err := s.client.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) {

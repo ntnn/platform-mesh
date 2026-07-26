@@ -56,7 +56,7 @@ func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployerv1alp
 		return err
 	}
 
-	return s.teardown(ctx, pm, components.RootShard, &operatorv1alpha1.RootShardList{}, map[string]struct{}{clusterID: {}})
+	return s.teardown(ctx, pm, components.RootShard, &operatorv1alpha1.RootShardList{}, map[string]struct{}{name: {}})
 }
 
 // rootShardRef is the name of the single root shard admin CR that shards reference.
