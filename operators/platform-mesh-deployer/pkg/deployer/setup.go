@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"go.platform-mesh.io/golang-commons/logger"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
@@ -53,7 +54,10 @@ type Config struct {
 }
 
 // Setup registers the deployer controllers on the manager.
-func Setup(_ mcmanager.Manager, _ Config) error {
+func Setup(mgr mcmanager.Manager, _ Config) error {
+	if err := controller.NewPlatformMeshReconciler(mgr).SetupWithManager(mgr); err != nil {
+		return fmt.Errorf("setting up PlatformMesh reconciler: %w", err)
+	}
 	return nil
 }
 
