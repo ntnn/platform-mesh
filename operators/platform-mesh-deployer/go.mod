@@ -14,15 +14,18 @@ replace (
 replace sigs.k8s.io/multicluster-runtime => github.com/ntnn/multicluster-runtime v0.24.2-0.20260726095807-8edbf3201cf6
 
 require (
+	github.com/kcp-dev/kcp-operator/sdk v0.0.0-00010101000000-000000000000
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
 	go.platform-mesh.io/apis v0.0.3
 	go.platform-mesh.io/golang-commons v0.18.1
+	go.platform-mesh.io/subroutines v0.6.1
 	golang.org/x/mod v0.36.0
 	k8s.io/apimachinery v0.36.0
 	k8s.io/client-go v0.36.0
+	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2
 	ocm.software/open-component-model/bindings/go/blob v0.0.13
 	ocm.software/open-component-model/bindings/go/credentials v0.0.14
 	ocm.software/open-component-model/bindings/go/ctf v0.4.1
@@ -70,7 +73,6 @@ require (
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/kcp-dev/kcp-operator/sdk v0.0.0-00010101000000-000000000000 // indirect
 	github.com/kcp-dev/logicalcluster/v3 v3.0.5 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.21 // indirect
@@ -107,7 +109,6 @@ require (
 	golang.org/x/term v0.43.0 // indirect
 	golang.org/x/text v0.37.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
-	golang.org/x/tools v0.45.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260610212136-7ab31c22f7ad // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260610212136-7ab31c22f7ad // indirect
@@ -120,7 +121,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.36.0 // indirect
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260618221249-bc653b64f974 // indirect
-	k8s.io/utils v0.0.0-20260507154919-ff6756f316d2 // indirect
 	ocm.software/open-component-model/bindings/go/configuration v0.0.15 // indirect
 	ocm.software/open-component-model/bindings/go/dag v0.0.6 // indirect
 	ocm.software/open-component-model/bindings/go/descriptor/v2 v2.0.3-alpha3 // indirect
