@@ -19,18 +19,15 @@ package topology
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/subroutines"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
@@ -61,115 +58,65 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 	if err := s.reconcileRootShard(ctx, pm); err != nil {
 		return subroutines.Result{}, err
 	}
+	if err := s.reconcileShards(ctx, pm); err != nil {
+		return subroutines.Result{}, err
+	}
 	return subroutines.OK(), nil
 }
 
-func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) error {
-	group := pm.Spec.Topology.RootShard
-
-	engaged := s.registry.ClustersFor(pm.Name, components.RootShard)
-	if len(engaged) > 1 {
-		return fmt.Errorf("root shard must be a single cluster, got %d engaged", len(engaged))
-	}
-	if len(engaged) == 0 {
-		return fmt.Errorf("no root shard cluster engaged")
-	}
-	cl := engaged[0]
-
-	rs, err := s.buildRootShard(pm, group, cl.ClusterID)
-	if err != nil {
-		return err
-	}
-	if err := s.apply(ctx, pm, rs); err != nil {
-		return err
-	}
-
-	return s.teardownRootShards(ctx, pm, map[string]struct{}{cl.ClusterID: {}})
-}
-
-func (s *Subroutine) buildRootShard(pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.RootShard, clusterID string) (*operatorv1alpha1.RootShard, error) {
-	name := group.Name + "-" + clusterID
-	celCtx := celtemplate.Context{
-		PlatformMesh: pm.Name,
-		Component:    components.RootShard,
-		ShardGroup:   group.Name,
-		Cluster:      clusterID,
-	}
-
-	var spec operatorv1alpha1.RootShardSpec
-	if group.Template != nil {
-		data, err := json.Marshal(group.Template)
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(data, &spec); err != nil {
-			return nil, err
-		}
-	}
-
-	for i, endpoint := range spec.Etcd.Endpoints {
+// resolveEtcd expands the CEL expressions in the owned etcd endpoints and prefix.
+func resolveEtcd(etcd *operatorv1alpha1.EtcdConfig, celCtx celtemplate.Context, what string) error {
+	for i, endpoint := range etcd.Endpoints {
 		resolved, err := celtemplate.Eval(endpoint, celCtx)
 		if err != nil {
-			return nil, fmt.Errorf("root shard %q etcd endpoint: %w", name, err)
+			return fmt.Errorf("%s etcd endpoint: %w", what, err)
 		}
-		spec.Etcd.Endpoints[i] = resolved
+		etcd.Endpoints[i] = resolved
 	}
-	if spec.Etcd.Prefix != "" {
-		resolved, err := celtemplate.Eval(spec.Etcd.Prefix, celCtx)
+	if etcd.Prefix != "" {
+		resolved, err := celtemplate.Eval(etcd.Prefix, celCtx)
 		if err != nil {
-			return nil, fmt.Errorf("root shard %q etcd prefix: %w", name, err)
+			return fmt.Errorf("%s etcd prefix: %w", what, err)
 		}
-		spec.Etcd.Prefix = resolved
+		etcd.Prefix = resolved
 	}
-
-	host, err := celtemplate.Eval(group.Exposure.HostnameTemplate, celCtx)
-	if err != nil {
-		return nil, fmt.Errorf("root shard %q hostname: %w", name, err)
-	}
-	spec.External.Hostname = host
-	spec.External.Port = uint32(group.Exposure.Port)
-
-	if group.CacheServerRef != "" {
-		spec.Cache.Reference = &corev1.LocalObjectReference{Name: group.CacheServerRef}
-	}
-
-	return &operatorv1alpha1.RootShard{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: pm.Namespace,
-			Labels: map[string]string{
-				LabelPlatformMesh: pm.Name,
-				LabelComponent:    components.RootShard,
-				LabelCluster:      clusterID,
-			},
-		},
-		Spec: spec,
-	}, nil
+	return nil
 }
 
-func (s *Subroutine) apply(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, desired *operatorv1alpha1.RootShard) error {
-	obj := &operatorv1alpha1.RootShard{ObjectMeta: metav1.ObjectMeta{Name: desired.Name, Namespace: desired.Namespace}}
+func labels(platformMesh, component, clusterID string) map[string]string {
+	return map[string]string{
+		LabelPlatformMesh: platformMesh,
+		LabelComponent:    component,
+		LabelCluster:      clusterID,
+	}
+}
+
+func (s *Subroutine) apply(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, obj ctrlruntimeclient.Object, mutate func()) error {
 	_, err := controllerutil.CreateOrUpdate(ctx, s.client, obj, func() error {
-		obj.Labels = desired.Labels
-		obj.Spec = desired.Spec
+		mutate()
 		return controllerutil.SetControllerReference(pm, obj, s.client.Scheme())
 	})
 	return err
 }
 
-func (s *Subroutine) teardownRootShards(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, engaged map[string]struct{}) error {
-	list := &operatorv1alpha1.RootShardList{}
+// teardown deletes admin CRs of the component whose cluster is no longer engaged.
+func (s *Subroutine) teardown(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, component string, list ctrlruntimeclient.ObjectList, engaged map[string]struct{}) error {
 	if err := s.client.List(ctx, list,
 		ctrlruntimeclient.InNamespace(pm.Namespace),
-		ctrlruntimeclient.MatchingLabels{LabelPlatformMesh: pm.Name, LabelComponent: components.RootShard},
+		ctrlruntimeclient.MatchingLabels{LabelPlatformMesh: pm.Name, LabelComponent: component},
 	); err != nil {
 		return err
 	}
-	for i := range list.Items {
-		if _, ok := engaged[list.Items[i].Labels[LabelCluster]]; ok {
+	items, err := meta.ExtractList(list)
+	if err != nil {
+		return err
+	}
+	for _, item := range items {
+		obj := item.(ctrlruntimeclient.Object)
+		if _, ok := engaged[obj.GetLabels()[LabelCluster]]; ok {
 			continue
 		}
-		if err := s.client.Delete(ctx, &list.Items[i]); err != nil && !apierrors.IsNotFound(err) {
+		if err := s.client.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) {
 			return err
 		}
 	}

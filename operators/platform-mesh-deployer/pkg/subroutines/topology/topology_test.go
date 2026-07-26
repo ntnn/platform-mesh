@@ -139,3 +139,39 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 	err = cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "root-west"}, &operatorv1alpha1.RootShard{})
 	assert.True(t, apierrors.IsNotFound(err), "expected stale RootShard torn down, got %v", err)
 }
+
+func TestReconcileShard(t *testing.T) {
+	pm := platformMesh()
+	pm.Spec.Topology.ShardGroups = []pmdeployerv1alpha1.ShardGroup{{
+		Name: "eu",
+		Template: &operatorv1alpha1.ShardTemplateSpec{
+			CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
+				Etcd: &operatorv1alpha1.EtcdConfig{
+					Endpoints: []string{`"https://etcd-" + platformMesh + ".pm:2379"`},
+					Prefix:    `"/" + platformMesh + "/" + shardGroup + "/" + cluster`,
+				},
+			},
+		},
+		CacheServerRef: "cache",
+	}}
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	reg := clusters.NewRegistry()
+	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "shards-eu#customer-a--west")
+
+	sub := topology.New(cl, reg)
+	_, err := sub.Process(t.Context(), pm)
+	require.NoError(t, err)
+
+	sh := &operatorv1alpha1.Shard{}
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "eu-west"}, sh))
+	assert.Equal(t, []string{"https://etcd-customer-a.pm:2379"}, sh.Spec.Etcd.Endpoints)
+	assert.Equal(t, "/customer-a/eu/west", sh.Spec.Etcd.Prefix)
+	require.NotNil(t, sh.Spec.RootShard.Reference)
+	assert.Equal(t, "root-east", sh.Spec.RootShard.Reference.Name)
+	require.NotNil(t, sh.Spec.Cache)
+	require.NotNil(t, sh.Spec.Cache.Reference)
+	assert.Equal(t, "cache", sh.Spec.Cache.Reference.Name)
+	assert.Equal(t, components.Shard("eu"), sh.Labels[topology.LabelComponent])
+	assert.Equal(t, "west", sh.Labels[topology.LabelCluster])
+}

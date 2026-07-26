@@ -18,6 +18,7 @@ package config
 
 import (
 	"go.platform-mesh.io/golang-commons/logger"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/deployer"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 
@@ -43,16 +44,16 @@ func (c OperatorConfig) DeployerConfig(mgr mcmanager.Manager, log *logger.Logger
 
 	shardProviders := make(map[string]multicluster.Provider, len(c.Provider.ShardGroups))
 	for group, label := range c.Provider.ShardGroups {
-		shardProviders[group] = newProvider(deployer.ShardComponent(group), label)
+		shardProviders[group] = newProvider(components.Shard(group), label)
 	}
 
 	return deployer.Config{
-		Log:                      log,
-		Resolver:                 resolver,
-		RootShardProvider:        newProvider(deployer.ComponentRootShard, c.Provider.RootShardLabel),
-		ShardProviders:           shardProviders,
-		FrontProxyProvider:       newProvider(deployer.ComponentFrontProxy, c.Provider.FrontProxyLabel),
-		CacheServerProvider:      newProvider(deployer.ComponentCacheServer, c.Provider.CacheServerLabel),
-		VirtualWorkspaceProvider: newProvider(deployer.ComponentVirtualWorkspace, c.Provider.VirtualWorkspaceLabel),
+		Log:                 log,
+		Resolver:            resolver,
+		RootShardProvider:   newProvider(components.RootShard, c.Provider.RootShardLabel),
+		ShardProviders:      shardProviders,
+		FrontProxyProvider:  newProvider(components.FrontProxy, c.Provider.FrontProxyLabel),
+		CacheServerProvider: newProvider(components.CacheServer, c.Provider.CacheServerLabel),
+		VirtualWorkspaceProvider: newProvider(components.VirtualWorkspace, c.Provider.VirtualWorkspaceLabel),
 	}
 }

@@ -22,6 +22,7 @@ import (
 
 	"go.platform-mesh.io/golang-commons/logger"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 
@@ -29,18 +30,6 @@ import (
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 	"sigs.k8s.io/multicluster-runtime/providers/multi"
 )
-
-// The prefixes passed to the [multi.Provider] for each [multicluster.Provider] of each component.
-const (
-	ComponentRootShard        = "rootshard"
-	ComponentFrontProxy       = "frontproxy"
-	ComponentCacheServer      = "cacheserver"
-	ComponentVirtualWorkspace = "virtualworkspace"
-	ShardComponentPrefix      = "shards-"
-)
-
-// ShardComponent returns the multi-provider prefix for a shard group.
-func ShardComponent(group string) string { return ShardComponentPrefix + group }
 
 // Config contains the necessary configuration to setup the deployer controllers with a manager.
 type Config struct {
@@ -69,13 +58,13 @@ func Setup(mgr mcmanager.Manager, _ Config) error {
 // AddProviders adds the configured [multicluster.Provider] to the [multi.Provider].
 func AddProviders(mp *multi.Provider, mgr mcmanager.Manager, cfg Config) error {
 	entries := map[string]multicluster.Provider{
-		ComponentRootShard:        cfg.RootShardProvider,
-		ComponentFrontProxy:       cfg.FrontProxyProvider,
-		ComponentCacheServer:      cfg.CacheServerProvider,
-		ComponentVirtualWorkspace: cfg.VirtualWorkspaceProvider,
+		components.RootShard:        cfg.RootShardProvider,
+		components.FrontProxy:       cfg.FrontProxyProvider,
+		components.CacheServer:      cfg.CacheServerProvider,
+		components.VirtualWorkspace: cfg.VirtualWorkspaceProvider,
 	}
 	for group, provider := range cfg.ShardProviders {
-		entries[ShardComponent(group)] = provider
+		entries[components.Shard(group)] = provider
 	}
 
 	for name, provider := range entries {
