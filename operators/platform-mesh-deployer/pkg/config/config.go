@@ -18,6 +18,8 @@ package config
 
 import (
 	"github.com/spf13/pflag"
+
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/deployer"
 )
 
 // Default per-component labels selecting kubeconfig secrets.
@@ -45,10 +47,14 @@ type ProviderConfig struct {
 
 type OperatorConfig struct {
 	Provider ProviderConfig
+
+	// EnabledControllers selects which controllers run.
+	EnabledControllers []string
 }
 
 func NewOperatorConfig() OperatorConfig {
 	return OperatorConfig{
+		EnabledControllers: []string{deployer.ControllerConfig, deployer.ControllerCopy},
 		Provider: ProviderConfig{
 			Namespace:           "platform-mesh-system",
 			KubeconfigSecretKey: "kubeconfig",
@@ -61,6 +67,7 @@ func NewOperatorConfig() OperatorConfig {
 }
 
 func (c *OperatorConfig) AddFlags(fs *pflag.FlagSet) {
+	fs.StringSliceVar(&c.EnabledControllers, "enabled-controllers", c.EnabledControllers, "Controllers to run (config, copy)")
 	fs.StringVar(&c.Provider.Namespace, "provider-namespace", c.Provider.Namespace, "Namespace to watch for kubeconfig secrets")
 	fs.StringVar(&c.Provider.KubeconfigSecretKey, "provider-kubeconfig-secret-key", c.Provider.KubeconfigSecretKey, "Key within the secret containing the kubeconfig")
 	fs.StringVar(&c.Provider.RootShardLabel, "provider-rootshard-label", c.Provider.RootShardLabel, "Label selecting root shard kubeconfig secrets")

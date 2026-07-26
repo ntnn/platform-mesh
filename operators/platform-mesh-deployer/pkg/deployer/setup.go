@@ -19,6 +19,7 @@ package deployer
 
 import (
 	"fmt"
+	"slices"
 
 	"go.platform-mesh.io/golang-commons/logger"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
@@ -31,10 +32,22 @@ import (
 	"sigs.k8s.io/multicluster-runtime/providers/multi"
 )
 
+// Controllers, enabled independently like kcp-operator config/workload.
+const (
+	// ControllerConfig creates the admin CRs on the config plane.
+	ControllerConfig = "config"
+	// ControllerCopy copies compiled CRs to their workload cluster.
+	ControllerCopy = "copy"
+)
+
 // Config contains the necessary configuration to setup the deployer controllers with a manager.
 type Config struct {
 	Log      *logger.Logger
 	Resolver ocm.Resolver
+
+	// EnabledControllers selects which controllers run (ControllerConfig,
+	// ControllerCopy).
+	EnabledControllers []string
 
 	RootShardProvider   multicluster.Provider
 	ShardProviders      map[string]multicluster.Provider // keyed by ShardGroup.Name
@@ -42,14 +55,26 @@ type Config struct {
 	CacheServerProvider multicluster.Provider
 }
 
+func (c Config) controllerEnabled(name string) bool {
+	return slices.Contains(c.EnabledControllers, name)
+}
+
 // Setup registers the deployer controllers on the manager.
-func Setup(mgr mcmanager.Manager, _ Config) error {
+func Setup(mgr mcmanager.Manager, cfg Config) error {
 	registry := clusters.NewRegistry()
 	if err := mgr.Add(registry); err != nil {
 		return fmt.Errorf("adding cluster registry: %w", err)
 	}
-	if err := controller.NewPlatformMeshReconciler(mgr, registry).SetupWithManager(mgr); err != nil {
-		return fmt.Errorf("setting up PlatformMesh reconciler: %w", err)
+
+	if cfg.controllerEnabled(ControllerConfig) {
+		if err := controller.NewPlatformMeshReconciler(mgr, registry).SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("setting up config controller: %w", err)
+		}
+	}
+	if cfg.controllerEnabled(ControllerCopy) {
+		if err := controller.NewCopyReconciler(mgr, registry).SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("setting up copy controller: %w", err)
+		}
 	}
 	return nil
 }

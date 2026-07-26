@@ -50,6 +50,7 @@ func (c OperatorConfig) DeployerConfig(mgr mcmanager.Manager, log *logger.Logger
 	return deployer.Config{
 		Log:                 log,
 		Resolver:            resolver,
+		EnabledControllers:  c.EnabledControllers,
 		RootShardProvider:   newProvider(components.RootShard, c.Provider.RootShardLabel),
 		ShardProviders:      shardProviders,
 		FrontProxyProvider:  newProvider(components.FrontProxy, c.Provider.FrontProxyLabel),
