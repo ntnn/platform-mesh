@@ -129,9 +129,7 @@ type ShardGroup struct {
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// Template is merged onto the rendered RootShard or Shard resources.
-	// Deployer-owned fields (etcd endpoints, rootShard ref, cache ref,
-	// external/exposure) win over template values.
+	// Template is merged onto the rendered Shard resources.
 	// +optional
 	Template *operatorv1alpha1.ShardTemplateSpec `json:"template,omitempty"`
 
@@ -189,11 +187,37 @@ type CacheServer struct {
 	SeedRef string `json:"seedRef,omitempty"`
 }
 
+// RootShard describes the kcp root shard.
+// One RootShard is deployed per engaged root-shard cluster.
+type RootShard struct {
+	// Name identifies the root shard group.
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name"`
+
+	// Template is merged onto the rendered RootShard resources.
+	// +optional
+	Template *operatorv1alpha1.RootShardTemplateSpec `json:"template,omitempty"`
+
+	// Etcd configures the etcd cluster backing the root shard.
+	// +optional
+	Etcd EtcdSpec `json:"etcd,omitempty"`
+
+	// CacheServerRef references a cache server by name.
+	// +optional
+	CacheServerRef string `json:"cacheServerRef,omitempty"`
+
+	// Exposure describes how the root shard front proxy endpoint is exposed.
+	Exposure Exposure `json:"exposure"`
+
+	// VirtualWorkspaces configures the virtual workspaces server for the root shard.
+	VirtualWorkspaces VirtualWorkspaceSpec `json:"virtualWorkspaces"`
+}
+
 // Topology describes the kcp topology of a PlatformMesh installation.
 // +kubebuilder:validation:XValidation:rule="!has(self.cacheServers) || size(self.cacheServers) <= 1",message="at most one cache server is supported in v1alpha1"
 type Topology struct {
-	// RootShard is the shard group hosting the kcp root shard.
-	RootShard ShardGroup `json:"rootShard"`
+	// RootShard is the kcp root shard.
+	RootShard RootShard `json:"rootShard"`
 
 	// ShardGroups are additional kcp shard groups.
 	// +optional
