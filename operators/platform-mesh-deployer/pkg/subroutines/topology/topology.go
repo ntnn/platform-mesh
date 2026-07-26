@@ -61,6 +61,9 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 	if err := s.reconcileShards(ctx, pm); err != nil {
 		return subroutines.Result{}, err
 	}
+	if err := s.reconcileFrontProxy(ctx, pm); err != nil {
+		return subroutines.Result{}, err
+	}
 	return subroutines.OK(), nil
 }
 

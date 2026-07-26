@@ -175,3 +175,31 @@ func TestReconcileShard(t *testing.T) {
 	assert.Equal(t, components.Shard("eu"), sh.Labels[topology.LabelComponent])
 	assert.Equal(t, "west", sh.Labels[topology.LabelCluster])
 }
+
+func TestReconcileFrontProxy(t *testing.T) {
+	pm := platformMesh()
+	pm.Spec.Topology.FrontProxy = pmdeployerv1alpha1.FrontProxy{
+		Name: "fp",
+		Exposure: pmdeployerv1alpha1.Exposure{
+			HostnameTemplate: `"api." + platformMesh + ".example.com"`,
+			Port:             443,
+		},
+	}
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	reg := clusters.NewRegistry()
+	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "frontproxy#customer-a--west")
+
+	sub := topology.New(cl, reg)
+	_, err := sub.Process(t.Context(), pm)
+	require.NoError(t, err)
+
+	fp := &operatorv1alpha1.FrontProxy{}
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "fp-west"}, fp))
+	require.NotNil(t, fp.Spec.RootShard.Reference)
+	assert.Equal(t, "root-east", fp.Spec.RootShard.Reference.Name)
+	assert.Equal(t, "api.customer-a.example.com", fp.Spec.External.Hostname)
+	assert.Equal(t, uint32(443), fp.Spec.External.Port)
+	assert.Equal(t, components.FrontProxy, fp.Labels[topology.LabelComponent])
+	assert.Equal(t, "west", fp.Labels[topology.LabelCluster])
+}
