@@ -122,8 +122,8 @@ type ShardGroup struct {
 	// +optional
 	Template *operatorv1alpha1.ShardTemplateSpec `json:"template,omitempty"`
 
-	// CacheServerRef references a cache server by name. Defaults to the sole
-	// defined cache server.
+	// CacheServerRef references a cache server by name.
+	// Defaults to the sole defined cache server.
 	// +optional
 	CacheServerRef string `json:"cacheServerRef,omitempty"`
 
@@ -195,7 +195,6 @@ type RootShard struct {
 }
 
 // Topology describes the kcp topology of a PlatformMesh installation.
-// +kubebuilder:validation:XValidation:rule="!has(self.cacheServers) || size(self.cacheServers) <= 1",message="at most one cache server is supported in v1alpha1"
 type Topology struct {
 	// RootShard is the kcp root shard.
 	RootShard RootShard `json:"rootShard"`
@@ -209,12 +208,10 @@ type Topology struct {
 	// FrontProxy is the kcp front proxy.
 	FrontProxy FrontProxy `json:"frontProxy"`
 
-	// CacheServers are the kcp cache servers. If none is defined, the root
-	// shard's embedded cache is used.
+	// CacheServer is the kcp cache server.
+	// If unset, the root shard's embedded cache is used.
 	// +optional
-	// +listType=map
-	// +listMapKey=name
-	CacheServers []CacheServer `json:"cacheServers,omitempty"`
+	CacheServer *CacheServer `json:"cacheServer,omitempty"`
 }
 
 // InfraComponent is an optional infrastructure component toggle with

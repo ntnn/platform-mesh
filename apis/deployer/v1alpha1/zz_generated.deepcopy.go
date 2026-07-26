@@ -620,12 +620,10 @@ func (in *Topology) DeepCopyInto(out *Topology) {
 		}
 	}
 	in.FrontProxy.DeepCopyInto(&out.FrontProxy)
-	if in.CacheServers != nil {
-		in, out := &in.CacheServers, &out.CacheServers
-		*out = make([]CacheServer, len(*in))
-		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
-		}
+	if in.CacheServer != nil {
+		in, out := &in.CacheServer, &out.CacheServer
+		*out = new(CacheServer)
+		(*in).DeepCopyInto(*out)
 	}
 }
 
