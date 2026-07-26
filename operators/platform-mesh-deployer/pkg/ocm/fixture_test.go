@@ -17,7 +17,6 @@ limitations under the License.
 package ocm
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,10 +27,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/mod/modfile"
-	"ocm.software/open-component-model/bindings/go/ctf"
-	"ocm.software/open-component-model/bindings/go/oci"
-	ocictf "ocm.software/open-component-model/bindings/go/oci/ctf"
-	"ocm.software/open-component-model/bindings/go/repository"
 )
 
 const (
@@ -114,37 +109,55 @@ func fetchFixture(t *testing.T) string {
 	return dst
 }
 
-// openFixtureRepo opens the cached CTF fixture as an OCM component version repository.
-func openFixtureRepo(t *testing.T) repository.ComponentVersionRepository {
+func fixtureResolver(t *testing.T) Resolver {
 	t.Helper()
 
-	archive, _, err := ctf.OpenCTFByFileExtension(context.Background(), ctf.OpenCTFOptions{
-		Path: fetchFixture(t),
-		Flag: os.O_RDONLY,
-	})
+	r, err := NewCTFResolver(fetchFixture(t))
 	require.NoError(t, err)
-
-	repo, err := oci.NewRepository(ocictf.WithCTF(ocictf.NewFromCTF(archive)))
-	require.NoError(t, err)
-	return repo
+	return r
 }
 
-func TestFixtureHarness(t *testing.T) {
-	repo := openFixtureRepo(t)
-
-	versions, err := repo.ListComponentVersions(t.Context(), fixture01Component)
+func TestResolve(t *testing.T) {
+	cv, err := fixtureResolver(t).Resolve(t.Context(), OCMRepositorySpec{}, fixture01Component, fixture01Version)
 	require.NoError(t, err)
-	require.Contains(t, versions, fixture01Version)
 
-	desc, err := repo.GetComponentVersion(t.Context(), fixture01Component, fixture01Version)
-	require.NoError(t, err)
+	desc := cv.Descriptor()
 	require.NotNil(t, desc)
 	require.Equal(t, fixture01Component, desc.Component.Name)
 	require.Equal(t, fixture01Version, desc.Component.Version)
 
-	names := make([]string, 0, len(desc.Component.Resources))
-	for _, r := range desc.Component.Resources {
-		names = append(names, r.Name)
-	}
-	require.Contains(t, names, "resource")
+	res := cv.ResourcesByType("something")
+	require.Len(t, res, 1)
+	require.Equal(t, "resource", res[0].Name)
+
+	byID, err := cv.Resource(res[0].ToIdentity())
+	require.NoError(t, err)
+	require.Equal(t, res[0].Name, byID.Name)
+
+	b, err := cv.Download(t.Context(), byID)
+	require.NoError(t, err)
+	rc, err := b.ReadCloser()
+	require.NoError(t, err)
+	defer func() { _ = rc.Close() }()
+	content, err := io.ReadAll(rc)
+	require.NoError(t, err)
+	require.Equal(t, "test", string(content))
+}
+
+func TestResolveNotFound(t *testing.T) {
+	r := fixtureResolver(t)
+
+	_, err := r.Resolve(t.Context(), OCMRepositorySpec{}, fixture01Component, "9.9.9")
+	require.ErrorIs(t, err, ErrNotFound)
+
+	_, err = r.Resolve(t.Context(), OCMRepositorySpec{}, "github.com/acme.org/nope", fixture01Version)
+	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestResourceNotFound(t *testing.T) {
+	cv, err := fixtureResolver(t).Resolve(t.Context(), OCMRepositorySpec{}, fixture01Component, fixture01Version)
+	require.NoError(t, err)
+
+	_, err = cv.Resource(map[string]string{"name": "missing"})
+	require.ErrorIs(t, err, ErrNotFound)
 }
