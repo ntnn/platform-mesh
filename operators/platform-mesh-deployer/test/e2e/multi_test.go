@@ -36,7 +36,7 @@ func TestConfigWorkloadCluster(t *testing.T) {
 	env := suite.Start(t, 1)
 	workload := env.Workloads[0]
 
-	env.EngageWorkload(t, "customer-a", workload, "rootshard", "frontproxy", "cacheserver", "shards-default")
+	env.EngageWorkload(t, "customer-a", workload, "rootshard", "frontproxy", "shards-default")
 	env.CopyEtcdClientCert(t, workload)
 
 	pm := platformMesh(env.EtcdEndpoint())
@@ -63,4 +63,6 @@ func TestConfigWorkloadCluster(t *testing.T) {
 		key := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: rootName + "-kcp"}
 		return workload.Client.Get(t.Context(), key, &appsv1.Deployment{}) == nil
 	}, 3*time.Minute, 5*time.Second, "workload kcp-operator did not render the root shard Deployment")
+
+	env.VerifyKcp(t, workload, workload, 2)
 }
