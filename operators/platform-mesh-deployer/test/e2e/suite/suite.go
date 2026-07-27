@@ -24,6 +24,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -67,6 +68,8 @@ type Cluster struct {
 	Name   string
 	Config *rest.Config
 	Client ctrlruntimeclient.Client
+	// NodeIP is the node's address on the shared kind docker network, used as the clusterID so sslip.io hosts resolve.
+	NodeIP string
 }
 
 // Env is a started e2e environment: a config plane plus workload clusters.
@@ -87,7 +90,9 @@ func Start(t *testing.T, workloadClusters int) *Env {
 	rolloutWait(t, cfgPlane, "cert-manager", "deployment/cert-manager-cainjector")
 	rolloutWait(t, cfgPlane, "cert-manager", "deployment/cert-manager-webhook")
 	applyKustomizeRetry(t, cfgPlane, base("bases", "cert-issuer"))
-	applyKustomizeNS(t, cfgPlane, base("bases", "etcd"), ProviderNamespace)
+	installEnvoyGateway(t, cfgPlane)
+	applyKustomizeNS(t, cfgPlane, base("bases", "etcd-tls"), ProviderNamespace)
+	setupEtcdTLS(t, cfgPlane)
 
 	env := &Env{Config: cfgPlane}
 	if workloadClusters == 0 {
@@ -100,6 +105,7 @@ func Start(t *testing.T, workloadClusters int) *Env {
 		rolloutWait(t, cfgPlane, "kcp-operator-system", "deployment/kcp-operator-controller-manager")
 		for i := range workloadClusters {
 			w := createCluster(t, fmt.Sprintf("workload-%d", i))
+			installEnvoyGateway(t, w)
 			applyKustomize(t, w, base("bases", "kcp-operator", "workload"))
 			rolloutWait(t, w, "kcp-operator-system", "deployment/kcp-operator-controller-manager")
 			env.Workloads = append(env.Workloads, w)
@@ -116,7 +122,8 @@ func Start(t *testing.T, workloadClusters int) *Env {
 }
 
 // EngageWorkload writes a kubeconfig Secret pointing at workload, labeled for the given components, onto the config plane so the deployer engages it.
-func (e *Env) EngageWorkload(t *testing.T, platformMesh, clusterID string, workload *Cluster, components ...string) {
+// The clusterID is the workload's dashed node IP so sslip.io hosts resolve.
+func (e *Env) EngageWorkload(t *testing.T, platformMesh string, workload *Cluster, components ...string) {
 	t.Helper()
 	kubeconfig, err := restToKubeconfig(workload.Config)
 	require.NoError(t, err)
@@ -127,7 +134,7 @@ func (e *Env) EngageWorkload(t *testing.T, platformMesh, clusterID string, workl
 	}
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      platformMesh + "--" + clusterID,
+			Name:      platformMesh + "--" + workload.NodeIP,
 			Namespace: ProviderNamespace,
 			Labels:    labels,
 		},
@@ -149,7 +156,37 @@ func createCluster(t *testing.T, role string) *Cluster {
 	require.NoError(t, err)
 	cl, err := ctrlruntimeclient.New(cfg, ctrlruntimeclient.Options{Scheme: deployer.NewScheme()})
 	require.NoError(t, err)
-	return &Cluster{Name: name, Config: cfg, Client: cl}
+	c := &Cluster{Name: name, Config: cfg, Client: cl}
+	c.NodeIP = dashedIP(nodeInternalIP(t, c))
+	patchCoreDNS(t, c)
+	return c
+}
+
+// kind forward DNS to the node its running on, which may block private
+// IPs returned by sslip.io for delegated resolves.
+// This configures core DNS to answer <name>.<ip>.sslip.io correctly.
+const coreDNSSslipBlock = `sslip.io:53 {
+    errors
+    template IN A sslip.io {
+        match "[.-](?P<a>[0-9]{1,3})-(?P<b>[0-9]{1,3})-(?P<c>[0-9]{1,3})-(?P<d>[0-9]{1,3})[.]sslip[.]io[.]$"
+        answer "{{ .Name }} 60 IN A {{ .Group.a }}.{{ .Group.b }}.{{ .Group.c }}.{{ .Group.d }}"
+        fallthrough
+    }
+}
+`
+
+func patchCoreDNS(t *testing.T, c *Cluster) {
+	t.Helper()
+	cm := &corev1.ConfigMap{}
+	key := ctrlruntimeclient.ObjectKey{Namespace: "kube-system", Name: "coredns"}
+	require.NoError(t, c.Client.Get(t.Context(), key, cm))
+	if strings.Contains(cm.Data["Corefile"], "sslip.io") {
+		return
+	}
+	cm.Data["Corefile"] = coreDNSSslipBlock + cm.Data["Corefile"]
+	require.NoError(t, c.Client.Update(t.Context(), cm))
+	kubectlRun(t, c.Config, "-n", "kube-system", "rollout", "restart", "deployment/coredns")
+	rolloutWait(t, c, "kube-system", "deployment/coredns")
 }
 
 func startDeployer(t *testing.T, restCfg *rest.Config) {
@@ -219,6 +256,25 @@ func applyKustomizeRetry(t *testing.T, c *Cluster, kustomization string) {
 func applyKustomizeNS(t *testing.T, c *Cluster, kustomization, namespace string) {
 	t.Helper()
 	kubectlRun(t, c.Config, "apply", "-k", kustomization, "-n", namespace, "--server-side", "--force-conflicts")
+}
+
+// applyYAML applies inline YAML via kubectl (for manifests templated at runtime).
+func applyYAML(t *testing.T, c *Cluster, yaml string) {
+	t.Helper()
+	path := writeKubeconfig(t, c.Config)
+	cmd := exec.Command("kubectl", "--kubeconfig", path, "apply", "--server-side", "--force-conflicts", "-f", "-") //nolint:gosec // test-controlled args
+	cmd.Stdin = strings.NewReader(yaml)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("kubectl apply -f -:\n%s\n%s", yaml, out)
+	}
+}
+
+// waitForSecret polls until the named secret exists (cert-manager issuance is async).
+func waitForSecret(t *testing.T, c *Cluster, namespace, name string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		return c.Client.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: namespace, Name: name}, &corev1.Secret{}) == nil
+	}, 3*time.Minute, 2*time.Second, "secret %s/%s not created", namespace, name)
 }
 
 func rolloutWait(t *testing.T, c *Cluster, namespace, object string) {

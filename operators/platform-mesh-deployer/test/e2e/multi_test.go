@@ -36,12 +36,14 @@ func TestConfigWorkloadCluster(t *testing.T) {
 	env := suite.Start(t, 1)
 	workload := env.Workloads[0]
 
-	env.EngageWorkload(t, "customer-a", "wl0", workload, "rootshard", "frontproxy", "cacheserver", "shards-default")
+	env.EngageWorkload(t, "customer-a", workload, "rootshard", "frontproxy", "cacheserver", "shards-default")
+	env.CopyEtcdClientCert(t, workload)
 
-	pm := platformMesh()
+	pm := platformMesh(env.EtcdEndpoint())
 	require.NoError(t, env.Config.Client.Create(t.Context(), pm))
 
-	rootShard := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: "root-wl0"}
+	rootName := "root-" + workload.NodeIP
+	rootShard := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: rootName}
 
 	// Config plane: the deployer creates the admin CR and the config kcp-operator
 	// compiles it.
@@ -58,7 +60,7 @@ func TestConfigWorkloadCluster(t *testing.T) {
 		return workload.Client.Get(t.Context(), rootShard, &deployv1alpha1.CompiledRootShard{}) == nil
 	}, 3*time.Minute, 5*time.Second, "deployer did not copy the CompiledRootShard to the workload cluster")
 	require.Eventually(t, func() bool {
-		key := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: "root-wl0-kcp"}
+		key := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: rootName + "-kcp"}
 		return workload.Client.Get(t.Context(), key, &appsv1.Deployment{}) == nil
 	}, 3*time.Minute, 5*time.Second, "workload kcp-operator did not render the root shard Deployment")
 }

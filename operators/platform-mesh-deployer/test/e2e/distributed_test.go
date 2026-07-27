@@ -17,6 +17,7 @@ limitations under the License.
 package e2e
 
 import (
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/test/e2e/suite"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,12 +40,14 @@ func TestDistributedClusters(t *testing.T) {
 	env := suite.Start(t, 4)
 	rs, sh, fp, cs := env.Workloads[0], env.Workloads[1], env.Workloads[2], env.Workloads[3]
 
-	env.EngageWorkload(t, "customer-a", "a", rs, "rootshard")
-	env.EngageWorkload(t, "customer-a", "b", sh, "shards-default")
-	env.EngageWorkload(t, "customer-a", "c", fp, "frontproxy")
-	env.EngageWorkload(t, "customer-a", "d", cs, "cacheserver")
+	env.EngageWorkload(t, "customer-a", rs, "rootshard")
+	env.EngageWorkload(t, "customer-a", sh, "shards-default")
+	env.EngageWorkload(t, "customer-a", fp, "frontproxy")
+	env.EngageWorkload(t, "customer-a", cs, "cacheserver")
+	env.CopyEtcdClientCert(t, rs)
+	env.CopyEtcdClientCert(t, sh)
 
-	pm := distributedPlatformMesh()
+	pm := distributedPlatformMesh(env.EtcdEndpoint())
 	require.NoError(t, env.Config.Client.Create(t.Context(), pm))
 
 	cases := []struct {
@@ -51,10 +55,10 @@ func TestDistributedClusters(t *testing.T) {
 		name    string
 		cluster *suite.Cluster
 	}{
-		{"CompiledRootShard", "root-a", rs},
-		{"CompiledShard", "default-b", sh},
-		{"CompiledFrontProxy", "fp-c", fp},
-		{"CompiledCacheServer", "global-d", cs},
+		{"CompiledRootShard", "root-" + rs.NodeIP, rs},
+		{"CompiledShard", "default-" + sh.NodeIP, sh},
+		{"CompiledFrontProxy", "fp-" + fp.NodeIP, fp},
+		{"CompiledCacheServer", "global-" + cs.NodeIP, cs},
 	}
 	for _, c := range cases {
 		require.Eventuallyf(t, func() bool {
@@ -74,10 +78,11 @@ func compiledExists(t *testing.T, cl ctrlruntimeclient.Client, kind, name string
 	return cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: name}, obj) == nil
 }
 
-func distributedPlatformMesh() *pmdeployerv1alpha1.PlatformMesh {
+func distributedPlatformMesh(etcdEndpoint string) *pmdeployerv1alpha1.PlatformMesh {
 	etcd := func() *operatorv1alpha1.EtcdConfig {
 		return &operatorv1alpha1.EtcdConfig{
-			Endpoints: []string{`"http://etcd:2379"`},
+			Endpoints: []string{strconv.Quote(etcdEndpoint)},
+			TLSConfig: &operatorv1alpha1.EtcdTLSConfig{SecretRef: corev1.LocalObjectReference{Name: suite.EtcdClientSecret}},
 			Prefix:    `"/" + platformMesh + "/" + component`,
 		}
 	}
