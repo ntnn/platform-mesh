@@ -149,7 +149,13 @@ func createCluster(t *testing.T, role string) *Cluster {
 	kubeconfig := filepath.Join(t.TempDir(), name+".kubeconfig")
 
 	sh(t, "kind", "create", "cluster", "--name", name, "--kubeconfig", kubeconfig)
-	t.Cleanup(func() { _ = exec.Command("kind", "delete", "cluster", "--name", name).Run() })
+	t.Cleanup(func() {
+		if os.Getenv("E2E_KEEP") != "" {
+			t.Logf("E2E_KEEP set: leaving cluster %s (kubeconfig %s)", name, kubeconfig)
+			return
+		}
+		_ = exec.Command("kind", "delete", "cluster", "--name", name).Run()
+	})
 	sh(t, "kind", "load", "docker-image", "--name", name, kcpOperatorImage())
 
 	cfg, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
