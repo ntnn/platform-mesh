@@ -108,11 +108,6 @@ func TestExposureCreatesRoutes(t *testing.T) {
 	assert.Equal(t, []gwapiv1alpha2.Hostname{"root.east.sslip.io"}, root.Spec.Hostnames)
 	assert.Equal(t, "root-east-kcp", string(root.Spec.Rules[0].BackendRefs[0].Name))
 	assert.Equal(t, gwapiv1alpha2.PortNumber(6443), *root.Spec.Rules[0].BackendRefs[0].Port)
-	require.Len(t, root.Spec.ParentRefs, 1)
-	assert.Equal(t, "eg", string(root.Spec.ParentRefs[0].Name))
-	assert.Equal(t, "envoy-gateway-system", string(*root.Spec.ParentRefs[0].Namespace))
-	assert.Equal(t, "passthrough", string(*root.Spec.ParentRefs[0].SectionName))
-	assert.Equal(t, components.RootShard, root.Labels[topology.LabelComponent])
 
 	shard := getRoute(t, shardCl, "pm", "eu-west-gw")
 	assert.Equal(t, []gwapiv1alpha2.Hostname{"shards-eu.west.sslip.io"}, shard.Spec.Hostnames)
@@ -123,6 +118,11 @@ func TestExposureCreatesRoutes(t *testing.T) {
 	assert.Equal(t, []gwapiv1alpha2.Hostname{"fp.fpc.sslip.io"}, fp.Spec.Hostnames)
 	assert.Equal(t, "fp-fpc-front-proxy", string(fp.Spec.Rules[0].BackendRefs[0].Name))
 	assert.Equal(t, gwapiv1alpha2.PortNumber(31443), *fp.Spec.Rules[0].BackendRefs[0].Port)
+	require.Len(t, fp.Spec.ParentRefs, 1)
+	assert.Equal(t, "eg", string(fp.Spec.ParentRefs[0].Name))
+	assert.Equal(t, "envoy-gateway-system", string(*fp.Spec.ParentRefs[0].Namespace))
+	assert.Equal(t, "passthrough", string(*fp.Spec.ParentRefs[0].SectionName))
+	assert.Equal(t, components.FrontProxy, fp.Labels[topology.LabelComponent])
 }
 
 func TestExposureNoStacksNoRoutes(t *testing.T) {
@@ -152,23 +152,23 @@ func TestExposureTeardownStale(t *testing.T) {
 	s := testScheme(t)
 	stale := &gwapiv1alpha2.TLSRoute{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "root-east-gw",
+			Name:      "fp-gone-gw",
 			Namespace: "pm",
 			Labels: map[string]string{
 				topology.LabelPlatformMesh: "customer-a",
-				topology.LabelComponent:    components.RootShard,
+				topology.LabelComponent:    components.FrontProxy,
 				topology.LabelCluster:      "gone",
 			},
 		},
 	}
-	rootCl := fake.NewClientBuilder().WithScheme(s).WithObjects(stale).Build()
+	fpCl := fake.NewClientBuilder().WithScheme(s).WithObjects(stale).Build()
 
 	pm := &pmdeployerv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
 		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
 			Topology: pmdeployerv1alpha1.Topology{
-				RootShard:  pmdeployerv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"root." + cluster + ".sslip.io"`, 31443)},
-				FrontProxy: pmdeployerv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"fp"`, 31443)},
+				RootShard:  pmdeployerv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
+				FrontProxy: pmdeployerv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
 			},
 			Ingress: []pmdeployerv1alpha1.IngressStack{{
 				Name:       "gw",
@@ -178,16 +178,16 @@ func TestExposureTeardownStale(t *testing.T) {
 		},
 	}
 	reg := clusters.NewRegistry()
-	engage(t, reg, "rootshard#customer-a--east", rootCl)
+	engage(t, reg, "frontproxy#customer-a--east", fpCl)
 
 	_, err := exposure.New(reg).Process(context.Background(), pm)
 	require.NoError(t, err)
 
 	// Stale route for the disengaged "gone" cluster removed, current one present.
 	list := &gwapiv1alpha2.TLSRouteList{}
-	require.NoError(t, rootCl.List(context.Background(), list))
+	require.NoError(t, fpCl.List(context.Background(), list))
 	require.Len(t, list.Items, 1)
-	assert.Equal(t, "root-east-gw", list.Items[0].Name)
+	assert.Equal(t, "fp-east-gw", list.Items[0].Name)
 	assert.Equal(t, "east", list.Items[0].Labels[topology.LabelCluster])
 }
 

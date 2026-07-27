@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"strconv"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
@@ -68,6 +70,24 @@ func (s *Subroutine) rootShardRef(pm *pmdeployerv1alpha1.PlatformMesh) (string, 
 	return pm.Spec.Topology.RootShard.Name + "-" + engaged[0].ClusterID, nil
 }
 
+// frontProxyExternal returns the front-proxy's hostname and port.
+func (s *Subroutine) frontProxyExternal(pm *pmdeployerv1alpha1.PlatformMesh) (string, uint32, error) {
+	fp := pm.Spec.Topology.FrontProxy
+	engaged := s.registry.ClustersFor(pm.Name, components.FrontProxy)
+	if len(engaged) == 0 {
+		return "", 0, fmt.Errorf("front proxy not ready")
+	}
+	host, err := celtemplate.Eval(fp.Exposure.HostnameTemplate, celtemplate.Context{
+		PlatformMesh: pm.Name,
+		Component:    components.FrontProxy,
+		Cluster:      engaged[0].ClusterID,
+	})
+	if err != nil {
+		return "", 0, fmt.Errorf("front proxy hostname: %w", err)
+	}
+	return host, uint32(fp.Exposure.Port), nil
+}
+
 func (s *Subroutine) buildRootShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.RootShard, clusterID string) (operatorv1alpha1.RootShardSpec, error) {
 	name := group.Name + "-" + clusterID
 	celCtx := celtemplate.Context{
@@ -92,12 +112,18 @@ func (s *Subroutine) buildRootShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, gro
 		return spec, err
 	}
 
+	fpHost, fpPort, err := s.frontProxyExternal(pm)
+	if err != nil {
+		return spec, fmt.Errorf("root shard %q: %w", name, err)
+	}
+	spec.External.Hostname = fpHost
+	spec.External.Port = fpPort
+
 	host, err := celtemplate.Eval(group.Exposure.HostnameTemplate, celCtx)
 	if err != nil {
 		return spec, fmt.Errorf("root shard %q hostname: %w", name, err)
 	}
-	spec.External.Hostname = host
-	spec.External.Port = uint32(group.Exposure.Port)
+	spec.ShardBaseURL = "https://" + net.JoinHostPort(host, strconv.Itoa(int(group.Exposure.Port)))
 
 	if group.CacheServerRef != "" {
 		spec.Cache.Reference = &corev1.LocalObjectReference{Name: group.CacheServerRef}

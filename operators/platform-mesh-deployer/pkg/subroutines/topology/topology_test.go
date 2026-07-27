@@ -68,6 +68,13 @@ func platformMesh() *pmdeployerv1alpha1.PlatformMesh {
 						Port:             6443,
 					},
 				},
+				FrontProxy: pmdeployerv1alpha1.FrontProxy{
+					Name: "fp",
+					Exposure: pmdeployerv1alpha1.Exposure{
+						HostnameTemplate: `"fp." + platformMesh + ".example.com"`,
+						Port:             6443,
+					},
+				},
 			},
 		},
 	}
@@ -83,6 +90,7 @@ func TestReconcileRootShard(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "frontproxy#customer-a--fp")
 
 	sub := topology.New(cl, reg)
 	_, err := sub.Process(t.Context(), pm)
@@ -93,8 +101,9 @@ func TestReconcileRootShard(t *testing.T) {
 	require.Len(t, rs.Spec.Etcd.Endpoints, 1)
 	assert.Equal(t, "https://etcd-customer-a.pm:2379", rs.Spec.Etcd.Endpoints[0])
 	assert.Equal(t, "/customer-a/east", rs.Spec.Etcd.Prefix)
-	assert.Equal(t, "kcp.customer-a.example.com", rs.Spec.External.Hostname)
+	assert.Equal(t, "fp.customer-a.example.com", rs.Spec.External.Hostname)
 	assert.Equal(t, uint32(6443), rs.Spec.External.Port)
+	assert.Equal(t, "https://kcp.customer-a.example.com:6443", rs.Spec.ShardBaseURL)
 	assert.Equal(t, "customer-a", rs.Labels[topology.LabelPlatformMesh])
 	assert.Equal(t, components.RootShard, rs.Labels[topology.LabelComponent])
 	assert.Equal(t, "east", rs.Labels[topology.LabelCluster])
@@ -130,6 +139,7 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, stale).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "frontproxy#customer-a--fp")
 
 	sub := topology.New(cl, reg)
 	_, err := sub.Process(t.Context(), pm)
@@ -161,6 +171,7 @@ func TestReconcileShard(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "frontproxy#customer-a--fp")
 	engage(t, reg, "shards-eu#customer-a--west")
 
 	sub := topology.New(cl, reg)
@@ -223,6 +234,7 @@ func TestReconcileCacheServer(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "frontproxy#customer-a--fp")
 	engage(t, reg, "cacheserver#customer-a--west")
 
 	sub := topology.New(cl, reg)
@@ -250,6 +262,7 @@ func TestReconcileVirtualWorkspace(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "frontproxy#customer-a--fp")
 
 	sub := topology.New(cl, reg)
 	_, err := sub.Process(t.Context(), pm)
@@ -270,6 +283,7 @@ func TestReconcileVirtualWorkspaceEmbeddedSkipped(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
+	engage(t, reg, "frontproxy#customer-a--fp")
 
 	sub := topology.New(cl, reg)
 	_, err := sub.Process(t.Context(), pm)
