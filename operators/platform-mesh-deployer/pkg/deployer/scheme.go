@@ -22,6 +22,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	gwapiv1 "sigs.k8s.io/gateway-api/apis/v1"
+	gwapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
 
 	deployv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/deploy/v1alpha1"
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
@@ -34,5 +36,7 @@ func NewScheme() *runtime.Scheme {
 	utilruntime.Must(pmdeployerv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(deployv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(gwapiv1.Install(scheme))
+	utilruntime.Must(gwapiv1alpha2.Install(scheme))
 	return scheme
 }

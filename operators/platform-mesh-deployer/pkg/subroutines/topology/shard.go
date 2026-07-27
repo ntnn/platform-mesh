@@ -19,6 +19,9 @@ package topology
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"net"
+	"strconv"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
@@ -91,6 +94,14 @@ func (s *Subroutine) buildShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, group p
 	}
 
 	spec.RootShard.Reference = &corev1.LocalObjectReference{Name: rootRef}
+
+	if group.Exposure != nil {
+		host, err := celtemplate.Eval(group.Exposure.HostnameTemplate, celCtx)
+		if err != nil {
+			return spec, fmt.Errorf("shard %q hostname: %w", name, err)
+		}
+		spec.ShardBaseURL = "https://" + net.JoinHostPort(host, strconv.Itoa(int(group.Exposure.Port)))
+	}
 
 	if group.CacheServerRef != "" {
 		spec.Cache = &operatorv1alpha1.ShardCacheConfig{Reference: &corev1.LocalObjectReference{Name: group.CacheServerRef}}

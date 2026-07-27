@@ -153,6 +153,10 @@ func TestReconcileShard(t *testing.T) {
 			},
 		},
 		CacheServerRef: "cache",
+		Exposure: &pmdeployerv1alpha1.Exposure{
+			HostnameTemplate: `component + "." + cluster + ".sslip.io"`,
+			Port:             31443,
+		},
 	}}
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
 	reg := clusters.NewRegistry()
@@ -169,6 +173,7 @@ func TestReconcileShard(t *testing.T) {
 	assert.Equal(t, "/customer-a/eu/west", sh.Spec.Etcd.Prefix)
 	require.NotNil(t, sh.Spec.RootShard.Reference)
 	assert.Equal(t, "root-east", sh.Spec.RootShard.Reference.Name)
+	assert.Equal(t, "https://shards-eu.west.sslip.io:31443", sh.Spec.ShardBaseURL)
 	require.NotNil(t, sh.Spec.Cache)
 	require.NotNil(t, sh.Spec.Cache.Reference)
 	assert.Equal(t, "cache", sh.Spec.Cache.Reference.Name)
