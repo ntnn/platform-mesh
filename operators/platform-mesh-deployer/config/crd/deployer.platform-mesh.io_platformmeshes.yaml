@@ -128,6 +128,25 @@ spec:
                     IngressStack describes one ingress technology deployment endpoints are exposed through.
                     Multiple stacks of different types can coexist.
                   properties:
+                    gatewayAPI:
+                      description: GatewayAPI configures the stack when Type is gatewayapi.
+                      properties:
+                        gatewayName:
+                          description: GatewayName is the name of the shared Gateway
+                            the TLSRoutes attach to.
+                          minLength: 1
+                          type: string
+                        gatewayNamespace:
+                          description: GatewayNamespace is the namespace of the Gateway.
+                            Optional; defaults to the route's namespace.
+                          type: string
+                        sectionName:
+                          description: SectionName optionally pins a specific Gateway
+                            listener.
+                          type: string
+                      required:
+                      - gatewayName
+                      type: object
                     name:
                       description: Name identifies the ingress stack. Referenced by
                         Exposure.IngressRefs.
@@ -140,14 +159,13 @@ spec:
                       - istio
                       - traefik
                       type: string
-                    values:
-                      description: Values holds stack-specific configuration such
-                        as ingress class, gateway reference or certificate issuer.
-                      x-kubernetes-preserve-unknown-fields: true
                   required:
                   - name
                   - type
                   type: object
+                  x-kubernetes-validations:
+                  - message: gatewayAPI must be set when type is gatewayapi
+                    rule: self.type != 'gatewayapi' || has(self.gatewayAPI)
                 type: array
                 x-kubernetes-list-map-keys:
                 - name

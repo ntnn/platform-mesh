@@ -70,6 +70,7 @@ const (
 
 // IngressStack describes one ingress technology deployment endpoints are exposed through.
 // Multiple stacks of different types can coexist.
+// +kubebuilder:validation:XValidation:rule="self.type != 'gatewayapi' || has(self.gatewayAPI)",message="gatewayAPI must be set when type is gatewayapi"
 type IngressStack struct {
 	// Name identifies the ingress stack. Referenced by Exposure.IngressRefs.
 	// +kubebuilder:validation:MinLength=1
@@ -78,9 +79,25 @@ type IngressStack struct {
 	// Type is the ingress technology of this stack.
 	Type IngressType `json:"type"`
 
-	// Values holds stack-specific configuration such as ingress class, gateway reference or certificate issuer.
+	// GatewayAPI configures the stack when Type is gatewayapi.
 	// +optional
-	Values *apiextensionsv1.JSON `json:"values,omitempty"`
+	GatewayAPI *GatewayAPIValues `json:"gatewayAPI,omitempty"`
+}
+
+// GatewayAPIValues is the configuration of a gatewayapi IngressStack.
+// This is only configuration for the TLSRoutes.
+type GatewayAPIValues struct {
+	// GatewayName is the name of the shared Gateway the TLSRoutes attach to.
+	// +kubebuilder:validation:MinLength=1
+	GatewayName string `json:"gatewayName"`
+
+	// GatewayNamespace is the namespace of the Gateway. Optional; defaults to the route's namespace.
+	// +optional
+	GatewayNamespace string `json:"gatewayNamespace,omitempty"`
+
+	// SectionName optionally pins a specific Gateway listener.
+	// +optional
+	SectionName string `json:"sectionName,omitempty"`
 }
 
 // VirtualWorkspaceMode is the deployment mode of the virtual workspaces server.
