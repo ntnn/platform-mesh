@@ -22,6 +22,7 @@ import (
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/exposure"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/ready"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 	"go.platform-mesh.io/subroutines"
@@ -50,6 +51,7 @@ type PlatformMeshReconciler struct {
 func NewPlatformMeshReconciler(mgr mcmanager.Manager, registry *clusters.Registry) *PlatformMeshReconciler {
 	subs := []subroutines.Subroutine{
 		topology.New(mgr.GetLocalManager().GetClient(), registry),
+		exposure.New(registry),
 		ready.New(),
 	}
 	lc := lifecycle.New(mgr, platformMeshReconcilerName, func() ctrlruntimeclient.Object {
