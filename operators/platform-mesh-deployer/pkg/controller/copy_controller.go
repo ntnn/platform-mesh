@@ -23,13 +23,12 @@ import (
 
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
 
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/client-go/util/retry"
 	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -98,16 +97,16 @@ func (r *compiledCopy) Reconcile(ctx context.Context, req reconcile.Request) (re
 	}
 	workload := target.GetClient()
 
-	if err := ensureNamespace(ctx, workload, req.Namespace); err != nil {
+	if err := sync.EnsureNamespace(ctx, workload, req.Namespace); err != nil {
 		return reconcile.Result{}, err
 	}
-	if err := copySpec(ctx, workload, r.gvk, req.NamespacedName, src); err != nil {
+	if err := sync.CopySpec(ctx, workload, r.gvk, req.NamespacedName, src); err != nil {
 		return reconcile.Result{}, err
 	}
 	if err := r.copyRelated(ctx, workload, src.GetNamespace(), src.GetLabels()); err != nil {
 		return reconcile.Result{}, err
 	}
-	if err := reflectStatus(ctx, workload, r.local, r.gvk, req.NamespacedName); err != nil {
+	if err := sync.ReflectStatus(ctx, workload, r.local, r.gvk, req.NamespacedName); err != nil {
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
@@ -183,53 +182,4 @@ func (r *compiledCopy) copyRelated(ctx context.Context, workload ctrlruntimeclie
 		}
 	}
 	return nil
-}
-
-// ensureNamespace creates the namespace on the workload cluster if it is missing,
-// so the copied compiled CR and its secrets have a place to land.
-func ensureNamespace(ctx context.Context, workload ctrlruntimeclient.Client, name string) error {
-	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
-	if err := workload.Create(ctx, ns); err != nil && !apierrors.IsAlreadyExists(err) {
-		return err
-	}
-	return nil
-}
-
-func copySpec(ctx context.Context, workload ctrlruntimeclient.Client, gvk schema.GroupVersionKind, key ctrlruntimeclient.ObjectKey, src *unstructured.Unstructured) error {
-	spec, _, err := unstructured.NestedFieldCopy(src.Object, "spec")
-	if err != nil {
-		return err
-	}
-	dst := &unstructured.Unstructured{}
-	dst.SetGroupVersionKind(gvk)
-	dst.SetNamespace(key.Namespace)
-	dst.SetName(key.Name)
-	_, err = controllerutil.CreateOrUpdate(ctx, workload, dst, func() error {
-		dst.SetLabels(src.GetLabels())
-		return unstructured.SetNestedField(dst.Object, spec, "spec")
-	})
-	return err
-}
-
-func reflectStatus(ctx context.Context, workload, local ctrlruntimeclient.Client, gvk schema.GroupVersionKind, key ctrlruntimeclient.ObjectKey) error {
-	current := &unstructured.Unstructured{}
-	current.SetGroupVersionKind(gvk)
-	if err := workload.Get(ctx, key, current); err != nil {
-		return ctrlruntimeclient.IgnoreNotFound(err)
-	}
-	status, ok, err := unstructured.NestedFieldCopy(current.Object, "status")
-	if err != nil || !ok {
-		return err
-	}
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		latest := &unstructured.Unstructured{}
-		latest.SetGroupVersionKind(gvk)
-		if err := local.Get(ctx, key, latest); err != nil {
-			return ctrlruntimeclient.IgnoreNotFound(err)
-		}
-		if err := unstructured.SetNestedField(latest.Object, status, "status"); err != nil {
-			return err
-		}
-		return local.Status().Update(ctx, latest)
-	})
 }
