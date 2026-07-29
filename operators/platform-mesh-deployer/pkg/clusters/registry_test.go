@@ -101,3 +101,48 @@ func assertEvent(t *testing.T, r *Registry) string {
 		return ""
 	}
 }
+
+func TestAllClustersForDedupsByClusterID(t *testing.T) {
+	r := NewRegistry()
+	ctx := t.Context()
+
+	names := []multicluster.ClusterName{
+		"rootshard#customer-a--east",
+		"frontproxy#customer-a--east", // same cluster, second role
+		"shards-default#customer-a--west",
+		"rootshard#customer-b--other",
+		"rootshard#customer-a-b--east", // different pm whose name contains '-'
+	}
+	for _, name := range names {
+		require.NoError(t, r.Engage(ctx, name, nil))
+	}
+
+	all := r.AllClustersFor("customer-a")
+	ids := make([]string, 0, len(all))
+	for _, c := range all {
+		ids = append(ids, c.ClusterID)
+	}
+	assert.Equal(t, []string{"east", "west"}, ids)
+
+	assert.Empty(t, r.AllClustersFor("unknown"))
+}
+
+func TestShardGroups(t *testing.T) {
+	r := NewRegistry()
+	ctx := t.Context()
+
+	names := []multicluster.ClusterName{
+		"shards-default#customer-a--s1",
+		"shards-default#customer-a--s2",
+		"shards-eu#customer-a--s3",
+		"rootshard#customer-a--east",
+		"shards-default#customer-b--s4",
+	}
+	for _, name := range names {
+		require.NoError(t, r.Engage(ctx, name, nil))
+	}
+
+	assert.Equal(t, []string{"default", "eu"}, r.ShardGroups("customer-a"))
+	assert.Equal(t, []string{"default"}, r.ShardGroups("customer-b"))
+	assert.Empty(t, r.ShardGroups("unknown"))
+}

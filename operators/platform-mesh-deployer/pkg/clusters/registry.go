@@ -23,6 +23,8 @@ import (
 	"strings"
 	"sync"
 
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -173,5 +175,56 @@ func (r *Registry) ClustersFor(platformMesh, component string) []Cluster {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// AllClustersFor returns the engaged clusters of the named PlatformMesh across every component.
+func (r *Registry) AllClustersFor(platformMesh string) []Cluster {
+	infix := componentSeparator + platformMesh + platformMeshDelim
+
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	seen := make(map[string]struct{})
+	var out []Cluster
+	for name, cl := range r.clusters {
+		_, rest, ok := strings.Cut(name.String(), infix)
+		if !ok {
+			continue
+		}
+		if _, dup := seen[rest]; dup {
+			continue
+		}
+		seen[rest] = struct{}{}
+		out = append(out, Cluster{Name: name, ClusterID: rest, Cluster: cl})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].ClusterID < out[j].ClusterID
+	})
+	return out
+}
+
+// ShardGroups returns the names of the shard groups the PlatformMesh has engaged clusters for.
+func (r *Registry) ShardGroups(platformMesh string) []string {
+	suffix := componentSeparator + platformMesh + platformMeshDelim
+
+	r.lock.RLock()
+	defer r.lock.RUnlock()
+
+	seen := make(map[string]struct{})
+	var out []string
+	for name := range r.clusters {
+		component, _, ok := strings.Cut(name.String(), suffix)
+		if !ok || !strings.HasPrefix(component, components.ShardPrefix) {
+			continue
+		}
+		group := strings.TrimPrefix(component, components.ShardPrefix)
+		if _, dup := seen[group]; dup {
+			continue
+		}
+		seen[group] = struct{}{}
+		out = append(out, group)
+	}
+	sort.Strings(out)
 	return out
 }
