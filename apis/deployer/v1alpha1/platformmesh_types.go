@@ -18,7 +18,6 @@ package v1alpha1
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
@@ -231,41 +230,6 @@ type Topology struct {
 	CacheServer *CacheServer `json:"cacheServer,omitempty"`
 }
 
-// InfraComponent is an optional infrastructure component toggle with
-// configuration.
-type InfraComponent struct {
-	// Enabled toggles deployment of the component.
-	// +optional
-	Enabled bool `json:"enabled,omitempty"`
-
-	// Values holds component-specific configuration.
-	// +optional
-	Values *apiextensionsv1.JSON `json:"values,omitempty"`
-}
-
-// InfraSpec configures the infrastructure components managed by the deployer.
-type InfraSpec struct {
-	// EtcdDruid configures the etcd-druid operator.
-	// +optional
-	EtcdDruid *InfraComponent `json:"etcdDruid,omitempty"`
-
-	// CertManager configures cert-manager.
-	// +optional
-	CertManager *InfraComponent `json:"certManager,omitempty"`
-
-	// GatewayAPI configures the Gateway API CRDs and implementation.
-	// +optional
-	GatewayAPI *InfraComponent `json:"gatewayAPI,omitempty"`
-
-	// Traefik configures traefik.
-	// +optional
-	Traefik *InfraComponent `json:"traefik,omitempty"`
-
-	// Observability configures the observability stack.
-	// +optional
-	Observability *InfraComponent `json:"observability,omitempty"`
-}
-
 // PlatformMeshSpec defines the desired state of a PlatformMesh installation.
 type PlatformMeshSpec struct {
 	// Version is the pinned version of the aggregate OCM component version.
@@ -278,10 +242,6 @@ type PlatformMeshSpec struct {
 
 	// Topology describes the kcp topology.
 	Topology Topology `json:"topology"`
-
-	// Infra configures the infrastructure components.
-	// +optional
-	Infra InfraSpec `json:"infra,omitempty"`
 
 	// Ingress defines the ingress stacks endpoints are exposed through. All
 	// types can coexist.

@@ -65,60 +65,6 @@ spec:
             description: PlatformMeshSpec defines the desired state of a PlatformMesh
               installation.
             properties:
-              infra:
-                description: Infra configures the infrastructure components.
-                properties:
-                  certManager:
-                    description: CertManager configures cert-manager.
-                    properties:
-                      enabled:
-                        description: Enabled toggles deployment of the component.
-                        type: boolean
-                      values:
-                        description: Values holds component-specific configuration.
-                        x-kubernetes-preserve-unknown-fields: true
-                    type: object
-                  etcdDruid:
-                    description: EtcdDruid configures the etcd-druid operator.
-                    properties:
-                      enabled:
-                        description: Enabled toggles deployment of the component.
-                        type: boolean
-                      values:
-                        description: Values holds component-specific configuration.
-                        x-kubernetes-preserve-unknown-fields: true
-                    type: object
-                  gatewayAPI:
-                    description: GatewayAPI configures the Gateway API CRDs and implementation.
-                    properties:
-                      enabled:
-                        description: Enabled toggles deployment of the component.
-                        type: boolean
-                      values:
-                        description: Values holds component-specific configuration.
-                        x-kubernetes-preserve-unknown-fields: true
-                    type: object
-                  observability:
-                    description: Observability configures the observability stack.
-                    properties:
-                      enabled:
-                        description: Enabled toggles deployment of the component.
-                        type: boolean
-                      values:
-                        description: Values holds component-specific configuration.
-                        x-kubernetes-preserve-unknown-fields: true
-                    type: object
-                  traefik:
-                    description: Traefik configures traefik.
-                    properties:
-                      enabled:
-                        description: Enabled toggles deployment of the component.
-                        type: boolean
-                      values:
-                        description: Values holds component-specific configuration.
-                        x-kubernetes-preserve-unknown-fields: true
-                    type: object
-                type: object
               ingress:
                 description: |-
                   Ingress defines the ingress stacks endpoints are exposed through. All
