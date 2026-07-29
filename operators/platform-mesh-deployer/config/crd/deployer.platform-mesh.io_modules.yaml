@@ -34,6 +34,9 @@ spec:
     - jsonPath: .spec.version
       name: Version
       type: string
+    - jsonPath: .spec.stage
+      name: Stage
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -66,13 +69,143 @@ spec:
             properties:
               component:
                 description: Component is the name of the module's OCM component,
-                  e.g. github.com/platform-mesh/account-operator.
+                  e.g. github.com/platform-mesh/platform-mesh/tenancy-operator.
                 minLength: 1
                 type: string
+              components:
+                description: Components are the deployable units of the module.
+                items:
+                  description: ModuleComponent is one deployable unit of a module.
+                  properties:
+                    kubeconfigs:
+                      description: Kubeconfigs references entries of ModuleSpec.Kubeconfigs
+                        that are minted for this component and synced to its clusters.
+                      items:
+                        type: string
+                      type: array
+                      x-kubernetes-list-type: set
+                    mapping:
+                      description: |-
+                        Mapping exposes the component under a URI path of the front proxy.
+                        Only supported when Placement is per-front-proxy.
+                      properties:
+                        path:
+                          description: |-
+                            Path is the URI path added to the front proxy's path mappings, e.g.
+                            /services/acme/.
+                          pattern: ^/.*$
+                          type: string
+                        port:
+                          description: Port is the port the backend Service serves
+                            TLS on.
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                        service:
+                          description: |-
+                            Service is the name of the backend Service in the component's cluster.
+                            Supports ${ ... } templating.
+                          minLength: 1
+                          type: string
+                      required:
+                      - path
+                      - port
+                      - service
+                      type: object
+                    name:
+                      description: Name identifies the component within the module.
+                      minLength: 1
+                      type: string
+                    namespace:
+                      description: Namespace is the namespace the component's objects
+                        are created in.
+                      minLength: 1
+                      type: string
+                    placement:
+                      description: Placement selects the clusters the component is
+                        deployed to.
+                      enum:
+                      - root-shard
+                      - per-shard
+                      - per-front-proxy
+                      - all-clusters
+                      type: string
+                    resource:
+                      description: |-
+                        Resource is the name of the component version resource holding the
+                        component's manifests.
+                      minLength: 1
+                      type: string
+                  required:
+                  - name
+                  - namespace
+                  - placement
+                  - resource
+                  type: object
+                  x-kubernetes-validations:
+                  - message: mapping is only supported for per-front-proxy components
+                    rule: '!has(self.mapping) || self.placement == ''per-front-proxy'''
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
+              dependsOn:
+                description: DependsOn references Modules of the same PlatformMesh
+                  that must be ready before this one is deployed.
+                items:
+                  description: |-
+                    LocalObjectReference contains enough information to let you locate the
+                    referenced object inside the same namespace.
+                  properties:
+                    name:
+                      default: ""
+                      description: |-
+                        Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
+                        More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      type: string
+                  type: object
+                  x-kubernetes-map-type: atomic
+                type: array
+              kubeconfigs:
+                description: Kubeconfigs are the kcp kubeconfigs minted for this module
+                  and referenced by its components.
+                items:
+                  description: ModuleKubeconfig allows a module to request a kubeconfig
+                    for a specific target.
+                  properties:
+                    name:
+                      description: |-
+                        Name identifies the kubeconfig.
+                        Components reference it by this name and the minted secret is named <module>-<name>.
+                      minLength: 1
+                      type: string
+                    target:
+                      description: Target selects the kcp component the kubeconfig
+                        points at.
+                      enum:
+                      - front-proxy
+                      - shard
+                      - root-shard
+                      type: string
+                    workspace:
+                      description: |-
+                        Workspace names the module workspace the kubeconfig is scoped to.
+                        Empty targets the module workspace itself.
+                      type: string
+                  required:
+                  - name
+                  - target
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               ocm:
-                description: |-
-                  OCM overrides the OCM repository the module component is resolved from.
-                  Defaults to the repository of the referenced PlatformMesh.
+                description: The OCM repository the module component is resolved from.
                 properties:
                   component:
                     description: Component is the name of the OCM component to resolve.
@@ -100,9 +233,8 @@ spec:
                 - url
                 type: object
               platformMeshRef:
-                description: |-
-                  PlatformMeshRef references the PlatformMesh installation the module is
-                  deployed to.
+                description: PlatformMeshRef references the PlatformMesh installation
+                  the module is deployed to.
                 properties:
                   name:
                     default: ""
@@ -115,21 +247,134 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              stage:
+                description: Stage orders the module relative to the kcp deployment.
+                enum:
+                - pre-topology
+                - post-topology
+                type: string
               values:
-                description: Values holds module-specific configuration.
+                description: Values holds module-specific configuration, exposed to
+                  the payload templating as ${values.*}.
                 x-kubernetes-preserve-unknown-fields: true
               version:
                 description: Version is the pinned version of the module component.
                 minLength: 1
                 type: string
+              workspaces:
+                description: Workspaces are the kcp workspaces the module needs provisioned.
+                items:
+                  description: ModuleWorkspace is a kcp workspace that will be created
+                    for the module.
+                  properties:
+                    content:
+                      description: |-
+                        Content references the component version resources holding the
+                        manifests that should be applied in this workspace.
+                      items:
+                        description: ResourceRef references a resource of an OCM component
+                          version.
+                        properties:
+                          digest:
+                            description: Digest is the digest of the resource.
+                            type: string
+                          name:
+                            description: Name is the name of the resource within the
+                              component version.
+                            minLength: 1
+                            type: string
+                          version:
+                            description: Version is the version of the resource.
+                            type: string
+                        required:
+                        - name
+                        type: object
+                      type: array
+                    name:
+                      description: |-
+                        Name is the workspace name relative to the module workspace.
+                        Empty targets the module workspace itself. Children must not be nested.
+                      pattern: ^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$
+                      type: string
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             required:
             - component
             - platformMeshRef
+            - stage
             - version
             type: object
+            x-kubernetes-validations:
+            - message: pre-topology modules cannot declare workspaces
+              rule: self.stage != 'pre-topology' || !has(self.workspaces)
+            - message: pre-topology modules cannot declare kubeconfigs
+              rule: self.stage != 'pre-topology' || !has(self.kubeconfigs)
           status:
             description: ModuleStatus defines the observed state of a Module.
             properties:
+              components:
+                description: Components are the deployed components and their instances.
+                items:
+                  description: ModuleComponentStatus records the fan-out of one component.
+                  properties:
+                    instances:
+                      description: Instances are the per-cluster deployments of the
+                        component.
+                      items:
+                        description: ModuleInstanceStatus records one component deployed
+                          to one cluster.
+                        properties:
+                          cluster:
+                            description: Cluster is the ID of the cluster the instance
+                              runs on.
+                            type: string
+                          configMap:
+                            description: ConfigMap is the name of the generated ConfigMap
+                              holding the instance's runtime facts.
+                            type: string
+                          namespace:
+                            description: Namespace is the namespace the instance's
+                              objects were created in.
+                            type: string
+                          ready:
+                            description: Ready reports whether the instance's objects
+                              have been applied.
+                            type: boolean
+                          secrets:
+                            description: Secrets lists the kubeconfig secrets synced
+                              to this cluster.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: set
+                        required:
+                        - cluster
+                        type: object
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - cluster
+                      x-kubernetes-list-type: map
+                    name:
+                      description: Name is the component name.
+                      type: string
+                    placement:
+                      description: Placement is the resolved placement of the component.
+                      enum:
+                      - root-shard
+                      - per-shard
+                      - per-front-proxy
+                      - all-clusters
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
               conditions:
                 items:
                   description: Condition contains details for one aspect of the current
@@ -196,6 +441,26 @@ spec:
                 description: ResolvedDigest is the digest of the resolved component
                   version.
                 type: string
+              workspaces:
+                description: Workspaces are the module's provisioned kcp workspaces.
+                items:
+                  description: ModuleWorkspaceStatus records a provisioned workspace.
+                  properties:
+                    name:
+                      description: Name is the workspace name relative to the module
+                        workspace.
+                      type: string
+                    path:
+                      description: Path is the resolved absolute workspace path.
+                      type: string
+                    ready:
+                      description: Ready reports whether the workspace has been provisioned.
+                      type: boolean
+                  type: object
+                type: array
+                x-kubernetes-list-map-keys:
+                - name
+                x-kubernetes-list-type: map
             type: object
         type: object
     served: true

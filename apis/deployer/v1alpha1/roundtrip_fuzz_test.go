@@ -50,8 +50,8 @@ func FuzzPlatformMeshRoundTrip(f *testing.F) {
 }
 
 func FuzzModuleRoundTrip(f *testing.F) {
-	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"Module","metadata":{"name":"account-operator"},"spec":{"platformMeshRef":{"name":"pm"},"component":"github.com/platform-mesh/account-operator","version":"0.1.0","values":{"replicas":2}}}`))
-	f.Add([]byte(`{"spec":{"platformMeshRef":{"name":"pm"},"component":"github.com/platform-mesh/account-operator","version":"0.1.0","ocm":{"url":"ghcr.io/other","secretRef":{"name":"creds"}}}}`))
+	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"Module","metadata":{"name":"acme"},"spec":{"platformMeshRef":{"name":"pm"},"stage":"post-topology","dependsOn":[{"name":"etcd-druid"}],"component":"github.com/platform-mesh/e2e-acme","version":"0.1.0","values":{"replicas":2},"workspaces":[{"name":"","content":[{"name":"apiexports"}]},{"name":"validation","content":[{"name":"validation-schemas"}]}],"kubeconfigs":[{"name":"kcp","target":"front-proxy"},{"name":"shardadmin","target":"shard","workspace":"validation"}],"components":[{"name":"controller","resource":"controller-manifests","placement":"root-shard","namespace":"acme-system","kubeconfigs":["kcp"]},{"name":"gateway","resource":"gateway-manifests","placement":"per-front-proxy","namespace":"acme-system","mapping":{"path":"/services/acme/","service":"acme-gateway","port":8443}}]},"status":{"resolvedDigest":"sha256:abc","workspaces":[{"name":"","path":"root:modules:acme","ready":true}],"components":[{"name":"controller","placement":"root-shard","instances":[{"cluster":"c1","namespace":"acme-system","configMap":"acme-controller","secrets":["acme-kcp"],"ready":true}]}]}}`))
+	f.Add([]byte(`{"spec":{"platformMeshRef":{"name":"pm"},"stage":"pre-topology","component":"github.com/platform-mesh/etcd-druid","version":"0.1.0","ocm":{"url":"ghcr.io/other","secretRef":{"name":"creds"}},"components":[{"name":"druid","resource":"manifests","placement":"all-clusters","namespace":"etcd-system"}]}}`))
 	f.Add([]byte(`{}`))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		fuzzRoundTrip(t, data, &Module{}, &Module{})

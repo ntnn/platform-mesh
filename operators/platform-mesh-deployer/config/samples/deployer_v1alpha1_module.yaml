@@ -20,5 +20,23 @@ metadata:
 spec:
   platformMeshRef:
     name: platform-mesh-sample
+  stage: post-topology
   component: github.com/platform-mesh/account-operator
   version: 1.0.0
+  values:
+    replicas: 1
+  workspaces:
+    - name: ""
+      content:
+        - name: apiresourceschemas
+        - name: apiexports
+  kubeconfigs:
+    - name: kcp
+      target: front-proxy
+  components:
+    - name: controller
+      resource: controller-manifests
+      placement: root-shard
+      namespace: account-operator-system
+      kubeconfigs:
+        - kcp
