@@ -317,6 +317,27 @@ spec:
           status:
             description: ModuleStatus defines the observed state of a Module.
             properties:
+              appliedKinds:
+                description: |-
+                  AppliedKinds are the kinds the module's payloads produced. Teardown
+                  needs them because a deleted module can no longer resolve its
+                  component version to find out what it once applied.
+                items:
+                  description: GroupVersionKind identifies a kind the deployer applied.
+                  properties:
+                    group:
+                      type: string
+                    kind:
+                      minLength: 1
+                      type: string
+                    version:
+                      minLength: 1
+                      type: string
+                  required:
+                  - kind
+                  - version
+                  type: object
+                type: array
               components:
                 description: Components are the deployed components and their instances.
                 items:

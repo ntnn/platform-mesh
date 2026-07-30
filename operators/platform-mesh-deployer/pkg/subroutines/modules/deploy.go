@@ -101,7 +101,26 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 	}
 
 	mod.Status.Components = sortedStatus(status)
+	mod.Status.AppliedKinds = appliedKindsStatus(kinds)
 	return nil
+}
+
+// appliedKindsStatus records every kind applied on any cluster, so teardown
+// can find the objects again once the payload is gone.
+func appliedKindsStatus(perCluster map[string]map[schema.GroupVersionKind]struct{}) []pmdeployerv1alpha1.GroupVersionKind {
+	all := map[schema.GroupVersionKind]struct{}{}
+	for _, kinds := range perCluster {
+		for gvk := range kinds {
+			all[gvk] = struct{}{}
+		}
+	}
+	out := make([]pmdeployerv1alpha1.GroupVersionKind, 0, len(all))
+	for _, gvk := range kindsOf(all) {
+		out = append(out, pmdeployerv1alpha1.GroupVersionKind{
+			Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind,
+		})
+	}
+	return out
 }
 
 // prune deletes objects the module owns on a cluster that this reconcile did

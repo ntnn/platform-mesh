@@ -280,6 +280,24 @@ type ModuleStatus struct {
 	// +listType=map
 	// +listMapKey=name
 	Components []ModuleComponentStatus `json:"components,omitempty"`
+
+	// AppliedKinds are the kinds the module's payloads produced. Teardown
+	// needs them because a deleted module can no longer resolve its
+	// component version to find out what it once applied.
+	// +optional
+	AppliedKinds []GroupVersionKind `json:"appliedKinds,omitempty"`
+}
+
+// GroupVersionKind identifies a kind the deployer applied.
+type GroupVersionKind struct {
+	// +optional
+	Group string `json:"group,omitempty"`
+
+	// +kubebuilder:validation:MinLength=1
+	Version string `json:"version"`
+
+	// +kubebuilder:validation:MinLength=1
+	Kind string `json:"kind"`
 }
 
 // Module is the schema for a module deployed on top of a PlatformMesh installation.
