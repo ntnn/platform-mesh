@@ -87,7 +87,7 @@ func (e *Env) PublishComponent(t *testing.T, c Component) string {
 // RegistryURL is the address the in-process deployer reaches the cluster's
 // registry on. Plain HTTP, so the OCM bindings skip TLS.
 func (e *Env) RegistryURL() string {
-	return "http://" + undashIP(e.Config.NodeIP) + ":30500"
+	return "http://" + e.registryAddr
 }
 
 // ctfCache returns a CTF directory holding the component, building it on a

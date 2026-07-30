@@ -17,14 +17,11 @@ limitations under the License.
 package e2e
 
 import (
-	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
@@ -238,9 +235,7 @@ func assertModuleRunning(t *testing.T, env *suite.Env, mod *pmdeployerv1alpha1.M
 func getModuleIdentity(t *testing.T, env *suite.Env) map[string]string {
 	t.Helper()
 
-	ip := strings.ReplaceAll(env.Config.NodeIP, "-", ".")
 	url := "https://fp." + env.Config.NodeIP + ".sslip.io:31443" + modulePath
-	dial := net.JoinHostPort(ip, "31443")
 
 	client := &http.Client{
 		Timeout: 20 * time.Second,
@@ -248,9 +243,7 @@ func getModuleIdentity(t *testing.T, env *suite.Env) map[string]string {
 			// The front proxy serves the kcp PKI, which the test does
 			// not carry; the assertion is about routing and the body.
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec // test
-			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-				return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", dial)
-			},
+			DialContext:     suite.FrontProxyDialer(t, env.Config),
 		},
 	}
 

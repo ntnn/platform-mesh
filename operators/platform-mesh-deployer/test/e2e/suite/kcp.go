@@ -17,8 +17,6 @@ limitations under the License.
 package suite
 
 import (
-	"context"
-	"net"
 	"sort"
 	"strings"
 	"testing"
@@ -121,10 +119,9 @@ func (e *Env) mintAdminConfig(t *testing.T, root, frontProxy *Cluster) *rest.Con
 	// Strip the default context's .../clusters/<TargetWorkspace> back
 	// to the bare origin because later functions modify the host.
 	cfg.Host, _, _ = strings.Cut(cfg.Host, "/clusters/")
-	dialAddr := undashIP(frontProxy.NodeIP) + ":31443"
-	cfg.Dial = func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", dialAddr)
-	}
+	// TLS still verifies against the front proxy's sslip.io hostname in
+	// cfg.Host; only the connection is redirected.
+	cfg.Dial = FrontProxyDialer(t, frontProxy)
 	return cfg
 }
 
@@ -266,5 +263,3 @@ func waitDeploymentReady(t *testing.T, c *Cluster, namespace, name string) {
 		return dep.Status.ReadyReplicas > 0 && dep.Status.ReadyReplicas == dep.Status.Replicas
 	}, 5*time.Minute, 5*time.Second, "deployment %s/%s not ready", namespace, name)
 }
-
-func undashIP(dashed string) string { return strings.ReplaceAll(dashed, "-", ".") }

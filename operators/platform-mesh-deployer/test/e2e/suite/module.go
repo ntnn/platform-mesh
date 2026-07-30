@@ -39,15 +39,17 @@ ENTRYPOINT ["/module-app"]
 `
 
 // InstallRegistry deploys an OCI registry on the config plane and waits for it.
-// Module component versions are published there and resolved by the deployer
-// over the node port.
+// Module component versions are published there and resolved by the deployer,
+// which runs on the host and so reaches it through a port-forward.
 func (e *Env) InstallRegistry(t *testing.T) {
 	t.Helper()
 	applyKustomizeNS(t, e.Config, base("bases", "registry"), ProviderNamespace)
 	rolloutWait(t, e.Config, ProviderNamespace, "deployment/registry")
 
-	// A ready Deployment does not mean the node port is serving: kube-proxy
-	// programmes it separately, so poll the address we actually publish to.
+	addr, err := forward(t, e.Config, registry)
+	require.NoError(t, err)
+	e.registryAddr = addr
+
 	url := e.RegistryURL() + "/v2/"
 	require.Eventuallyf(t, func() bool {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
