@@ -37,9 +37,13 @@ type fakeCV struct {
 func newFakeCV(contents map[string]string) *fakeCV {
 	desc := &descriptorruntime.Descriptor{}
 	for name := range contents {
+		// A real resource identity carries its version too, so the fake
+		// must set one or it would accept lookups the store rejects.
 		desc.Component.Resources = append(desc.Component.Resources, descriptorruntime.Resource{
-			ElementMeta: descriptorruntime.ElementMeta{ObjectMeta: descriptorruntime.ObjectMeta{Name: name}},
-			Type:        "platform-mesh.io/manifests",
+			ElementMeta: descriptorruntime.ElementMeta{
+				ObjectMeta: descriptorruntime.ObjectMeta{Name: name, Version: "0.1.0"},
+			},
+			Type: "platform-mesh.io/manifests",
 		})
 	}
 	return &fakeCV{contents: contents, desc: desc}
@@ -49,7 +53,7 @@ func (f *fakeCV) Descriptor() *descriptorruntime.Descriptor { return f.desc }
 
 func (f *fakeCV) Resource(id runtime.Identity) (*descriptorruntime.Resource, error) {
 	for i := range f.desc.Component.Resources {
-		if f.desc.Component.Resources[i].Name == id["name"] {
+		if f.desc.Component.Resources[i].ToIdentity().Equal(id) {
 			return &f.desc.Component.Resources[i], nil
 		}
 	}

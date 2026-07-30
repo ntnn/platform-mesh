@@ -25,7 +25,6 @@ import (
 	"fmt"
 
 	descriptorruntime "ocm.software/open-component-model/bindings/go/descriptor/runtime"
-	"ocm.software/open-component-model/bindings/go/runtime"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
@@ -73,12 +72,20 @@ func Resolve(ctx context.Context, resolver ocm.Resolver, mod *pmdeployerv1alpha1
 }
 
 // Resource looks a resource up by name in the component version.
+// The lookup goes through the descriptor rather than the component version's
+// identity index: a resource identity carries its version as well as its name,
+// and a module only names the resource.
 func Resource(cv ocm.ComponentVersion, name string) (*descriptorruntime.Resource, error) {
-	res, err := cv.Resource(runtime.Identity{"name": name})
-	if err != nil {
-		return nil, fmt.Errorf("resource %q: %w", name, err)
+	desc := cv.Descriptor()
+	if desc == nil {
+		return nil, fmt.Errorf("resource %q: component version has no descriptor", name)
 	}
-	return res, nil
+	for i := range desc.Component.Resources {
+		if desc.Component.Resources[i].Name == name {
+			return &desc.Component.Resources[i], nil
+		}
+	}
+	return nil, fmt.Errorf("resource %q: %w", name, ocm.ErrNotFound)
 }
 
 // Digest returns the digest of the signed component descriptor, empty when the

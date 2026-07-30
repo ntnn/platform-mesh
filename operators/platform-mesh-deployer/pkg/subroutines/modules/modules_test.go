@@ -84,19 +84,21 @@ func (f *fakeCV) Descriptor() *descriptorruntime.Descriptor {
 	desc := &descriptorruntime.Descriptor{}
 	for name := range f.contents {
 		desc.Component.Resources = append(desc.Component.Resources, descriptorruntime.Resource{
-			ElementMeta: descriptorruntime.ElementMeta{ObjectMeta: descriptorruntime.ObjectMeta{Name: name}},
+			ElementMeta: descriptorruntime.ElementMeta{
+				ObjectMeta: descriptorruntime.ObjectMeta{Name: name, Version: "0.1.0"},
+			},
 		})
 	}
 	return desc
 }
 
 func (f *fakeCV) Resource(id ocmruntime.Identity) (*descriptorruntime.Resource, error) {
-	if _, ok := f.contents[id["name"]]; !ok {
-		return nil, ocm.ErrNotFound
+	for _, res := range f.Descriptor().Component.Resources {
+		if res.ToIdentity().Equal(id) {
+			return &res, nil
+		}
 	}
-	return &descriptorruntime.Resource{
-		ElementMeta: descriptorruntime.ElementMeta{ObjectMeta: descriptorruntime.ObjectMeta{Name: id["name"]}},
-	}, nil
+	return nil, ocm.ErrNotFound
 }
 
 func (f *fakeCV) ResourcesByType(string) []*descriptorruntime.Resource { return nil }
