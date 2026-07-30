@@ -186,7 +186,7 @@ spec:
                     type: object
                     x-kubernetes-validations:
                     - message: seedRef is not supported in v1alpha1 (see kcp-dev/kcp#4055)
-                      rule: '!has(self.seedRef) || self.seedRef == ”'
+                      rule: '!has(self.seedRef) || self.seedRef == '''''
                   frontProxy:
                     description: FrontProxy is the kcp front proxy.
                     properties:

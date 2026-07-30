@@ -172,7 +172,7 @@ type FrontProxy struct {
 }
 
 // CacheServer describes a kcp cache server deployment.
-// +kubebuilder:validation:XValidation:rule="!has(self.seedRef) || self.seedRef == ”",message="seedRef is not supported in v1alpha1 (see kcp-dev/kcp#4055)"
+// +kubebuilder:validation:XValidation:rule="!has(self.seedRef) || self.seedRef == ''",message="seedRef is not supported in v1alpha1 (see kcp-dev/kcp#4055)"
 type CacheServer struct {
 	// Name identifies the cache server, e.g. "global", "eu", "us".
 	// +kubebuilder:validation:MinLength=1
