@@ -22,8 +22,10 @@ import (
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/exposure"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/ready"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/rootstructure"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 	"go.platform-mesh.io/subroutines"
 	"go.platform-mesh.io/subroutines/conditions"
@@ -48,12 +50,17 @@ type PlatformMeshReconciler struct {
 	registry  *clusters.Registry
 }
 
-func NewPlatformMeshReconciler(mgr mcmanager.Manager, registry *clusters.Registry) *PlatformMeshReconciler {
+func NewPlatformMeshReconciler(mgr mcmanager.Manager, registry *clusters.Registry, access *kcp.Access) *PlatformMeshReconciler {
 	subs := []subroutines.Subroutine{
 		topology.New(mgr.GetLocalManager().GetClient(), registry),
 		exposure.New(registry),
-		ready.New(),
 	}
+	// The kcp root structure is only provisioned when this deployer runs
+	// the provisioner controller.
+	if access != nil {
+		subs = append(subs, rootstructure.New(access))
+	}
+	subs = append(subs, ready.New())
 	lc := lifecycle.New(mgr, platformMeshReconcilerName, func() ctrlruntimeclient.Object {
 		return &pmdeployerv1alpha1.PlatformMesh{}
 	}, subs...).WithConditions(conditions.NewManager())

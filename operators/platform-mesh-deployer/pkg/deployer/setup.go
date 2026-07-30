@@ -25,6 +25,7 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
@@ -40,6 +41,9 @@ const (
 	ControllerCopy = "copy"
 	// ControllerModule deploys Modules onto the engaged clusters.
 	ControllerModule = "module"
+	// ControllerProvisioner performs the kcp side of a PlatformMesh and its
+	// modules. It is the only controller that writes inside kcp.
+	ControllerProvisioner = "provisioner"
 )
 
 // Config contains the necessary configuration to setup the deployer controllers with a manager.
@@ -49,6 +53,11 @@ type Config struct {
 
 	// EnabledControllers selects which controllers run (ControllerConfig, ControllerCopy, ControllerModule).
 	EnabledControllers []string
+
+	// KcpDial overrides how the kcp front proxy is reached. The e2e runs
+	// the deployer outside the cluster, where the external hostname does
+	// not resolve; a normal deployment leaves this nil.
+	KcpDial kcp.DialFunc
 
 	RootShardProvider   multicluster.Provider
 	ShardProviders      map[string]multicluster.Provider // keyed by ShardGroup.Name
@@ -67,8 +76,14 @@ func Setup(mgr mcmanager.Manager, cfg Config) error {
 		return fmt.Errorf("adding cluster registry: %w", err)
 	}
 
+	local := mgr.GetLocalManager()
+	var access *kcp.Access
+	if cfg.controllerEnabled(ControllerProvisioner) {
+		access = kcp.New(local.GetClient(), registry, local.GetScheme(), cfg.KcpDial)
+	}
+
 	if cfg.controllerEnabled(ControllerConfig) {
-		if err := controller.NewPlatformMeshReconciler(mgr, registry).SetupWithManager(mgr); err != nil {
+		if err := controller.NewPlatformMeshReconciler(mgr, registry, access).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up config controller: %w", err)
 		}
 	}
@@ -80,6 +95,11 @@ func Setup(mgr mcmanager.Manager, cfg Config) error {
 	if cfg.controllerEnabled(ControllerModule) {
 		if err := controller.NewModuleReconciler(mgr, registry, cfg.Resolver).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up module controller: %w", err)
+		}
+	}
+	if cfg.controllerEnabled(ControllerProvisioner) {
+		if err := controller.NewModuleSetupReconciler(mgr, access, cfg.Resolver).SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("setting up provisioner controller: %w", err)
 		}
 	}
 	return nil
