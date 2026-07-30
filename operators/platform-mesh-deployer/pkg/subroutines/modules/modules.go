@@ -21,6 +21,7 @@ package modules
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
@@ -39,8 +40,9 @@ import (
 // The subroutine lifecycle only hands each step the object, so the chain is
 // driven from a single Process instead of one subroutine per step.
 type state struct {
-	resolved  *module.Resolved
-	instances []module.Instance
+	resolved     *module.Resolved
+	platformMesh *pmdeployerv1alpha1.PlatformMesh
+	instances    []module.Instance
 }
 
 const Name = "ModuleSubroutine"
@@ -100,8 +102,14 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 		return subroutines.Result{}, err
 	}
 
-	st := &state{resolved: resolved, instances: instances}
+	st := &state{resolved: resolved, platformMesh: pm, instances: instances}
 	if err := s.deploy(ctx, st); err != nil {
+		// kcp-operator mints kubeconfigs asynchronously; waiting for one
+		// is ordinary progress, not a failure.
+		if errors.Is(err, errKubeconfigPending) {
+			setCondition(mod, ConditionDeployed, metav1.ConditionFalse, "WaitingForKubeconfig", err.Error())
+			return subroutines.StopWithRequeue(requeueWait, err.Error()), nil
+		}
 		setCondition(mod, ConditionDeployed, metav1.ConditionFalse, "DeployFailed", err.Error())
 		return subroutines.Result{}, err
 	}

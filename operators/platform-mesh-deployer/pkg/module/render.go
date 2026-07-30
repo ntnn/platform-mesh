@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"strings"
 
 	"ocm.software/open-component-model/bindings/go/blob"
 
@@ -87,16 +86,25 @@ func (r *Resolved) Context(inst Instance) (celtemplate.Context, error) {
 	if err != nil {
 		return celtemplate.Context{}, err
 	}
+	workspace, workspaces := r.WorkspacePaths()
+	secrets := map[string]string{}
+	for _, kc := range r.Kubeconfigs(inst.Component) {
+		secrets[kc.Name] = KubeconfigSecretName(r.Module.Name, kc.Name)
+	}
+
 	return celtemplate.Context{
-		PlatformMesh:    r.Module.Spec.PlatformMeshRef.Name,
-		Component:       inst.Component.Name,
-		ShardGroup:      inst.ShardGroup,
-		Cluster:         inst.Cluster.ClusterID,
-		Module:          r.Module.Name,
-		Placement:       string(inst.Component.Placement),
-		TargetNamespace: inst.Component.Namespace,
-		ConfigMap:       ConfigMapName(r.Module.Name, inst.Component.Name),
-		Values:          values,
+		PlatformMesh:      r.Module.Spec.PlatformMeshRef.Name,
+		Component:         inst.Component.Name,
+		ShardGroup:        inst.ShardGroup,
+		Cluster:           inst.Cluster.ClusterID,
+		Module:            r.Module.Name,
+		Placement:         string(inst.Component.Placement),
+		TargetNamespace:   inst.Component.Namespace,
+		ConfigMap:         ConfigMapName(r.Module.Name, inst.Component.Name),
+		Workspace:         workspace,
+		Workspaces:        workspaces,
+		KubeconfigSecrets: secrets,
+		Values:            values,
 	}, nil
 }
 
@@ -139,11 +147,6 @@ func (r *Resolved) configMap(inst Instance, celCtx celtemplate.Context) *unstruc
 		"data": data,
 	}}
 	return obj
-}
-
-// envSuffix turns a declared name into an environment variable suffix.
-func envSuffix(name string) string {
-	return strings.ToUpper(strings.NewReplacer("-", "_", ".", "_").Replace(name))
 }
 
 // label marks an object as owned by this module instance so it can be found

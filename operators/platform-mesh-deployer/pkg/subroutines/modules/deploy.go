@@ -44,6 +44,12 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 	status := map[string]*pmdeployerv1alpha1.ModuleComponentStatus{}
 
 	for _, inst := range st.instances {
+		// The kubeconfigs must exist before the payload references them,
+		// otherwise its pods block mounting a missing secret.
+		if err := s.ensureKubeconfigs(ctx, st, inst); err != nil {
+			return err
+		}
+
 		objs, err := st.resolved.Render(ctx, inst)
 		if err != nil {
 			return err
