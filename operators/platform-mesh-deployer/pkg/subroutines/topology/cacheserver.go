@@ -19,6 +19,7 @@ package topology
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
@@ -53,6 +54,24 @@ func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployerv1a
 		}
 	}
 	return s.teardown(ctx, pm, components.CacheServer, &operatorv1alpha1.CacheServerList{}, desired)
+}
+
+// cacheServerRef is the name of the CacheServer admin CR a shard references.
+// Federating several cache servers is not supported in v1alpha1, so exactly
+// one must be engaged.
+func (s *Subroutine) cacheServerRef(pm *pmdeployerv1alpha1.PlatformMesh, ref string) (string, error) {
+	cacheServer := pm.Spec.Topology.CacheServer
+	if cacheServer == nil {
+		return "", fmt.Errorf("cacheServerRef %q set but no cache server defined", ref)
+	}
+	if cacheServer.Name != ref {
+		return "", fmt.Errorf("cacheServerRef %q does not match cache server %q", ref, cacheServer.Name)
+	}
+	engaged := s.registry.ClustersFor(pm.Name, components.CacheServer)
+	if len(engaged) != 1 {
+		return "", fmt.Errorf("cache server %q not ready", ref)
+	}
+	return names.CacheServer(pm.Name, cacheServer.Name, engaged[0].ClusterID), nil
 }
 
 func (s *Subroutine) buildCacheServerSpec(pm *pmdeployerv1alpha1.PlatformMesh, cacheServer pmdeployerv1alpha1.CacheServer, clusterID string) (operatorv1alpha1.CacheServerSpec, error) {

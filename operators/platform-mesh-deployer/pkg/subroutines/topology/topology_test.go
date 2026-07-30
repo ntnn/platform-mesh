@@ -169,11 +169,13 @@ func TestReconcileShard(t *testing.T) {
 			Port:             31443,
 		},
 	}}
+	pm.Spec.Topology.CacheServer = &pmdeployerv1alpha1.CacheServer{Name: "cache"}
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
 	engage(t, reg, "shards-eu#customer-a--west")
+	engage(t, reg, "cacheserver#customer-a--cache1")
 
 	sub := topology.New(cl, reg)
 	_, err := sub.Process(t.Context(), pm)
@@ -188,7 +190,7 @@ func TestReconcileShard(t *testing.T) {
 	assert.Equal(t, "https://shards-eu.west.sslip.io:31443", sh.Spec.ShardBaseURL)
 	require.NotNil(t, sh.Spec.Cache)
 	require.NotNil(t, sh.Spec.Cache.Reference)
-	assert.Equal(t, "cache", sh.Spec.Cache.Reference.Name)
+	assert.Equal(t, names.CacheServer("customer-a", "cache", "cache1"), sh.Spec.Cache.Reference.Name)
 	assert.Equal(t, components.Shard("eu"), sh.Labels[topology.LabelComponent])
 	assert.Equal(t, "west", sh.Labels[topology.LabelCluster])
 }
@@ -338,4 +340,54 @@ func TestReconcileNamesAreUniquePerPlatformMesh(t *testing.T) {
 
 func multiclusterName(component, platformMesh, clusterID string) string {
 	return component + "#" + platformMesh + "--" + clusterID
+}
+
+func TestReconcileCacheServerRef(t *testing.T) {
+	shardGroup := func(ref string) []pmdeployerv1alpha1.ShardGroup {
+		return []pmdeployerv1alpha1.ShardGroup{{
+			Name:           "eu",
+			CacheServerRef: ref,
+		}}
+	}
+
+	for name, tc := range map[string]struct {
+		cacheServer *pmdeployerv1alpha1.CacheServer
+		engaged     bool
+		ref         string
+		wantErr     string
+	}{
+		"undefined cache server": {
+			ref:     "cache",
+			wantErr: `cacheServerRef "cache" set but no cache server defined`,
+		},
+		"ref does not match": {
+			cacheServer: &pmdeployerv1alpha1.CacheServer{Name: "global"},
+			engaged:     true,
+			ref:         "cache",
+			wantErr:     `cacheServerRef "cache" does not match cache server "global"`,
+		},
+		"not engaged yet": {
+			cacheServer: &pmdeployerv1alpha1.CacheServer{Name: "cache"},
+			ref:         "cache",
+			wantErr:     `cache server "cache" not ready`,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			pm := platformMesh()
+			pm.Spec.Topology.ShardGroups = shardGroup(tc.ref)
+			pm.Spec.Topology.CacheServer = tc.cacheServer
+
+			cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+			reg := clusters.NewRegistry()
+			engage(t, reg, "rootshard#customer-a--east")
+			engage(t, reg, "frontproxy#customer-a--fp")
+			engage(t, reg, "shards-eu#customer-a--west")
+			if tc.engaged {
+				engage(t, reg, "cacheserver#customer-a--cache1")
+			}
+
+			_, err := topology.New(cl, reg).Process(t.Context(), pm)
+			require.ErrorContains(t, err, tc.wantErr)
+		})
+	}
 }

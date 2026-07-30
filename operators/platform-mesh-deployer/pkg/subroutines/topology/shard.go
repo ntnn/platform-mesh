@@ -104,7 +104,11 @@ func (s *Subroutine) buildShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, group p
 	}
 
 	if group.CacheServerRef != "" {
-		spec.Cache = &operatorv1alpha1.ShardCacheConfig{Reference: &corev1.LocalObjectReference{Name: group.CacheServerRef}}
+		ref, err := s.cacheServerRef(pm, group.CacheServerRef)
+		if err != nil {
+			return spec, fmt.Errorf("shard %q: %w", name, err)
+		}
+		spec.Cache = &operatorv1alpha1.ShardCacheConfig{Reference: &corev1.LocalObjectReference{Name: ref}}
 	}
 	return spec, nil
 }

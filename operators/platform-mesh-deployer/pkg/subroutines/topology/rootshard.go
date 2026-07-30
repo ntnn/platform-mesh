@@ -127,7 +127,11 @@ func (s *Subroutine) buildRootShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, gro
 	spec.ShardBaseURL = "https://" + net.JoinHostPort(host, strconv.Itoa(int(group.Exposure.Port)))
 
 	if group.CacheServerRef != "" {
-		spec.Cache.Reference = &corev1.LocalObjectReference{Name: group.CacheServerRef}
+		ref, err := s.cacheServerRef(pm, group.CacheServerRef)
+		if err != nil {
+			return spec, fmt.Errorf("root shard %q: %w", name, err)
+		}
+		spec.Cache.Reference = &corev1.LocalObjectReference{Name: ref}
 	}
 	return spec, nil
 }
