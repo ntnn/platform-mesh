@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 
 	"ocm.software/open-component-model/bindings/go/blob"
 	"ocm.software/open-component-model/bindings/go/ctf"
@@ -39,7 +40,12 @@ func New() Resolver {
 type ociResolver struct{}
 
 func (ociResolver) Resolve(ctx context.Context, repo OCMRepositorySpec, component, version string) (ComponentVersion, error) {
-	res, err := ociurl.New(ociurl.WithBaseURL(repo.URL))
+	base, plainHTTP := ParseRepositoryURL(repo.URL)
+	opts := []ociurl.Option{ociurl.WithBaseURL(base)}
+	if plainHTTP {
+		opts = append(opts, ociurl.WithPlainHTTP(true))
+	}
+	res, err := ociurl.New(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +55,17 @@ func (ociResolver) Resolve(ctx context.Context, repo OCMRepositorySpec, componen
 		return nil, err
 	}
 	return resolve(ctx, r, component, version)
+}
+
+// ParseRepositoryURL splits a repository URL into the registry reference and whether to talk plain HTTP.
+// The scheme has to go: it ends up verbatim in the OCI reference, which then fails to parse.
+func ParseRepositoryURL(raw string) (string, bool) {
+	for _, scheme := range []string{"http://", "https://", "oci://"} {
+		if rest, ok := strings.CutPrefix(raw, scheme); ok {
+			return rest, scheme == "http://"
+		}
+	}
+	return raw, false
 }
 
 func resolve(ctx context.Context, repo repository.ComponentVersionRepository, component, version string) (ComponentVersion, error) {

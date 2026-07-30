@@ -25,6 +25,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/mod/modfile"
 )
@@ -160,4 +161,28 @@ func TestResourceNotFound(t *testing.T) {
 
 	_, err = cv.Resource(map[string]string{"name": "missing"})
 	require.ErrorIs(t, err, ErrNotFound)
+}
+
+func TestParseRepositoryURL(t *testing.T) {
+	tests := []struct {
+		name          string
+		raw           string
+		wantBase      string
+		wantPlainHTTP bool
+	}{
+		// The scheme must not survive: it ends up verbatim in the OCI
+		// reference, which then fails to parse.
+		{name: "http selects plain HTTP", raw: "http://registry:5000", wantBase: "registry:5000", wantPlainHTTP: true},
+		{name: "https", raw: "https://ghcr.io/platform-mesh", wantBase: "ghcr.io/platform-mesh"},
+		{name: "oci", raw: "oci://ghcr.io/platform-mesh", wantBase: "ghcr.io/platform-mesh"},
+		{name: "no scheme", raw: "ghcr.io/platform-mesh", wantBase: "ghcr.io/platform-mesh"},
+		{name: "empty", raw: "", wantBase: ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base, plainHTTP := ParseRepositoryURL(tt.raw)
+			assert.Equal(t, tt.wantBase, base)
+			assert.Equal(t, tt.wantPlainHTTP, plainHTTP)
+		})
+	}
 }
