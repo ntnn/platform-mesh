@@ -51,18 +51,18 @@ const (
 )
 
 // Scoped returns the admin CR name for a component of platformMesh on the
-// given cluster, bounded to max bytes.
+// given cluster, bounded to budget bytes.
 //
 // The cluster ID is hashed because it is provider-controlled and unbounded,
-// while platformMesh and component stay readable. Names over max are truncated
+// while platformMesh and component stay readable. Names over budget are truncated
 // and suffixed with a hash of the full name so distinct inputs stay distinct.
 // The LabelCluster label on every admin CR maps a name back to its cluster.
-func Scoped(max int, platformMesh, component, clusterID string) string {
+func Scoped(budget int, platformMesh, component, clusterID string) string {
 	name := platformMesh + "-" + component + "-" + hash(clusterID, clusterHashLen)
-	if len(name) <= max {
+	if len(name) <= budget {
 		return name
 	}
-	return name[:max-overflowHashLen-1] + "-" + hash(name, overflowHashLen)
+	return name[:budget-overflowHashLen-1] + "-" + hash(name, overflowHashLen)
 }
 
 func hash(s string, n int) string {
