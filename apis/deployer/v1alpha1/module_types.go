@@ -58,8 +58,10 @@ const (
 type ModuleWorkspace struct {
 	// Name is the workspace name relative to the module workspace.
 	// Empty targets the module workspace itself. Children must not be nested.
+	// The empty default is required because the field is the list map key.
 	// +optional
-	// +kubebuilder:validation:Pattern=`^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$`
+	// +kubebuilder:default=""
+	// +kubebuilder:validation:Pattern=`^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)?$`
 	Name string `json:"name,omitempty"`
 
 	// Content references the component version resources holding the
@@ -184,7 +186,9 @@ type ModuleSpec struct {
 // ModuleWorkspaceStatus records a provisioned workspace.
 type ModuleWorkspaceStatus struct {
 	// Name is the workspace name relative to the module workspace.
+	// The empty default is required because the field is the list map key.
 	// +optional
+	// +kubebuilder:default=""
 	Name string `json:"name,omitempty"`
 
 	// Path is the resolved absolute workspace path.
