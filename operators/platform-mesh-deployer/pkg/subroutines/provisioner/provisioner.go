@@ -38,7 +38,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	k8syaml "k8s.io/apimachinery/pkg/util/yaml"
-	"k8s.io/client-go/rest"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -82,15 +81,15 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 		return subroutines.Result{}, err
 	}
 
-	for _, path := range setup.Spec.Workspaces {
-		client, err := s.access.EnsurePath(ctx, cfg, path)
+	for _, ws := range setup.Spec.Workspaces {
+		client, err := s.access.EnsurePath(ctx, cfg, ws.Path)
 		if err != nil {
 			if errors.Is(err, kcp.ErrWorkspacePending) {
 				return s.pending(setup, "WaitingForWorkspace", err.Error())
 			}
 			return subroutines.Result{}, err
 		}
-		if err := s.applyContent(ctx, setup, client, path, cfg); err != nil {
+		if err := s.applyContent(ctx, setup, client, ws); err != nil {
 			return subroutines.Result{}, err
 		}
 	}
@@ -105,37 +104,18 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 	return subroutines.OK(), nil
 }
 
-// applyContent applies the module's kcp manifests into one workspace. Only the
-// module's own workspace carries content today, so every declared resource is
-// applied there.
-func (s *Subroutine) applyContent(ctx context.Context, setup *pmdeployerv1alpha1.ModuleSetup, client ctrlruntimeclient.Client, path string, _ *rest.Config) error {
-	if len(setup.Spec.KcpContent) == 0 {
+// applyContent applies the manifests declared for one workspace into it.
+func (s *Subroutine) applyContent(ctx context.Context, setup *pmdeployerv1alpha1.ModuleSetup, client ctrlruntimeclient.Client, ws pmdeployerv1alpha1.ModuleSetupWorkspace) error {
+	if len(ws.Content) == 0 {
 		return nil
 	}
 
-	mod := &pmdeployerv1alpha1.Module{}
-	key := ctrlruntimeclient.ObjectKey{Namespace: setup.Namespace, Name: setup.Spec.ModuleRef.Name}
-	if err := s.client.Get(ctx, key, mod); err != nil {
-		return fmt.Errorf("getting Module %q: %w", key.Name, err)
-	}
-	// The module workspace holds the content; children are provisioned but
-	// left empty until a module declares content per workspace.
-	if path != module.WorkspacePath(mod.Name, "") {
-		return nil
-	}
-
-	pm := &pmdeployerv1alpha1.PlatformMesh{}
-	pmKey := ctrlruntimeclient.ObjectKey{Namespace: setup.Namespace, Name: setup.Spec.PlatformMeshRef.Name}
-	if err := s.client.Get(ctx, pmKey, pm); err != nil {
-		return fmt.Errorf("getting PlatformMesh %q: %w", pmKey.Name, err)
-	}
-
-	resolved, err := module.Resolve(ctx, s.resolver, mod, &pm.Spec.OCM)
+	resolved, err := s.resolveModule(ctx, setup)
 	if err != nil {
-		return fmt.Errorf("resolving module %q: %w", mod.Name, err)
+		return err
 	}
 
-	for _, ref := range setup.Spec.KcpContent {
+	for _, ref := range ws.Content {
 		res, err := module.Resource(resolved.CV, ref.Name)
 		if err != nil {
 			return err
@@ -154,11 +134,32 @@ func (s *Subroutine) applyContent(ctx context.Context, setup *pmdeployerv1alpha1
 		}
 		for _, o := range objs {
 			if err := sync.Apply(ctx, client, o); err != nil {
-				return fmt.Errorf("applying %q into %s: %w", ref.Name, path, err)
+				return fmt.Errorf("applying %q into %s: %w", ref.Name, ws.Path, err)
 			}
 		}
 	}
 	return nil
+}
+
+// resolveModule fetches the component version the setup belongs to.
+func (s *Subroutine) resolveModule(ctx context.Context, setup *pmdeployerv1alpha1.ModuleSetup) (*module.Resolved, error) {
+	mod := &pmdeployerv1alpha1.Module{}
+	key := ctrlruntimeclient.ObjectKey{Namespace: setup.Namespace, Name: setup.Spec.ModuleRef.Name}
+	if err := s.client.Get(ctx, key, mod); err != nil {
+		return nil, fmt.Errorf("getting Module %q: %w", key.Name, err)
+	}
+
+	pm := &pmdeployerv1alpha1.PlatformMesh{}
+	pmKey := ctrlruntimeclient.ObjectKey{Namespace: setup.Namespace, Name: setup.Spec.PlatformMeshRef.Name}
+	if err := s.client.Get(ctx, pmKey, pm); err != nil {
+		return nil, fmt.Errorf("getting PlatformMesh %q: %w", pmKey.Name, err)
+	}
+
+	resolved, err := module.Resolve(ctx, s.resolver, mod, &pm.Spec.OCM)
+	if err != nil {
+		return nil, fmt.Errorf("resolving module %q: %w", mod.Name, err)
+	}
+	return resolved, nil
 }
 
 func (s *Subroutine) pending(setup *pmdeployerv1alpha1.ModuleSetup, reason, message string) (subroutines.Result, error) {

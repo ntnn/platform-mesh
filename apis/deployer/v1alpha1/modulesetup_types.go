@@ -50,20 +50,29 @@ type ModuleSetupSpec struct {
 	// +optional
 	ComponentDigest string `json:"componentDigest,omitempty"`
 
-	// KcpContent references the component version resources containing kcp
-	// manifests.
+	// Workspaces are the kcp workspaces the module is set up in, each with
+	// the content to apply inside it.
 	// +optional
-	KcpContent []ResourceRef `json:"kcpContent,omitempty"`
-
-	// Workspaces are the kcp workspaces the module is set up in.
-	// +optional
-	// +listType=set
-	Workspaces []string `json:"workspaces,omitempty"`
+	// +listType=map
+	// +listMapKey=path
+	Workspaces []ModuleSetupWorkspace `json:"workspaces,omitempty"`
 
 	// KubeconfigRefs reference secrets containing kubeconfigs for the target
 	// kcp workspaces.
 	// +optional
 	KubeconfigRefs []corev1.LocalObjectReference `json:"kubeconfigRefs,omitempty"`
+}
+
+// ModuleSetupWorkspace is one kcp workspace and the content that belongs in it.
+type ModuleSetupWorkspace struct {
+	// Path is the absolute kcp workspace path.
+	// +kubebuilder:validation:MinLength=1
+	Path string `json:"path"`
+
+	// Content references the component version resources holding the
+	// manifests applied inside this workspace.
+	// +optional
+	Content []ResourceRef `json:"content,omitempty"`
 }
 
 // ModuleSetupStatus defines the observed state of a ModuleSetup. It is

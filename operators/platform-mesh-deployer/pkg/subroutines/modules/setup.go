@@ -41,11 +41,14 @@ func (s *Subroutine) ensureSetup(ctx context.Context, st *state) error {
 		return nil
 	}
 
-	workspaces := make([]string, 0, len(mod.Spec.Workspaces))
-	var content []pmdeployerv1alpha1.ResourceRef
+	// Content stays bound to the workspace it was declared for; flattening
+	// it would apply a child's manifests into the parent.
+	workspaces := make([]pmdeployerv1alpha1.ModuleSetupWorkspace, 0, len(mod.Spec.Workspaces))
 	for _, ws := range mod.Spec.Workspaces {
-		workspaces = append(workspaces, module.WorkspacePath(mod.Name, ws.Name))
-		content = append(content, ws.Content...)
+		workspaces = append(workspaces, pmdeployerv1alpha1.ModuleSetupWorkspace{
+			Path:    module.WorkspacePath(mod.Name, ws.Name),
+			Content: ws.Content,
+		})
 	}
 
 	setup := &pmdeployerv1alpha1.ModuleSetup{
@@ -57,7 +60,6 @@ func (s *Subroutine) ensureSetup(ctx context.Context, st *state) error {
 			PlatformMeshRef: mod.Spec.PlatformMeshRef,
 			ModuleRef:       corev1.LocalObjectReference{Name: mod.Name},
 			ComponentDigest: mod.Status.ResolvedDigest,
-			KcpContent:      content,
 			Workspaces:      workspaces,
 		}
 		return controllerutil.SetControllerReference(mod, setup, s.client.Scheme())

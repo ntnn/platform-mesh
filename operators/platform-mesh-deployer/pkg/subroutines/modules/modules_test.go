@@ -161,6 +161,11 @@ func testModule() *pmdeployerv1alpha1.Module {
 func newSubroutine(t *testing.T, objs []ctrlruntimeclient.Object, reg *clusters.Registry) *modules.Subroutine {
 	t.Helper()
 	local := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(objs...).Build()
+	return newSubroutineWithClient(t, local, reg)
+}
+
+func newSubroutineWithClient(t *testing.T, local ctrlruntimeclient.Client, reg *clusters.Registry) *modules.Subroutine {
+	t.Helper()
 	return modules.New(local, reg, &fakeResolver{cv: &fakeCV{contents: map[string]string{"agent-manifests": agentManifest}}})
 }
 

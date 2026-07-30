@@ -59,7 +59,7 @@ func FuzzModuleRoundTrip(f *testing.F) {
 }
 
 func FuzzModuleSetupRoundTrip(f *testing.F) {
-	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"ModuleSetup","metadata":{"name":"account-operator-setup"},"spec":{"platformMeshRef":{"name":"pm"},"moduleRef":{"name":"account-operator"},"componentDigest":"sha256:abc","kcpContent":[{"name":"kcp-manifests","version":"0.1.0"}],"workspaces":["root:orgs"],"kubeconfigRefs":[{"name":"ws-kubeconfig"}]},"status":{"endpoints":{"api":"https://kcp.example.com"}}}`))
+	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"ModuleSetup","metadata":{"name":"account-operator-setup"},"spec":{"platformMeshRef":{"name":"pm"},"moduleRef":{"name":"account-operator"},"componentDigest":"sha256:abc","workspaces":[{"path":"root:modules:account-operator","content":[{"name":"kcp-manifests","version":"0.1.0"}]},{"path":"root:modules:account-operator:validation"}],"kubeconfigRefs":[{"name":"ws-kubeconfig"}]},"status":{"endpoints":{"api":"https://kcp.example.com"}}}`))
 	f.Add([]byte(`{"spec":{"platformMeshRef":{"name":"pm"},"moduleRef":{"name":"account-operator"}}}`))
 	f.Add([]byte(`{}`))
 	f.Fuzz(func(t *testing.T, data []byte) {
