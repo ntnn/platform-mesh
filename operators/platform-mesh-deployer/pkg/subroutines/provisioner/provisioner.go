@@ -25,6 +25,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
@@ -94,6 +95,8 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 		}
 	}
 
+	setup.Status.Endpoints = workspaceEndpoints(cfg.Host, setup.Spec.Workspaces)
+
 	meta.SetStatusCondition(&setup.Status.Conditions, metav1.Condition{
 		Type:               ConditionReady,
 		Status:             metav1.ConditionTrue,
@@ -102,6 +105,31 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 		ObservedGeneration: setup.Generation,
 	})
 	return subroutines.OK(), nil
+}
+
+// workspaceEndpoints publishes the URL of each provisioned workspace, so a
+// module's payload can address its own kcp workspaces without knowing how the
+// front proxy is exposed. The module workspace is published as "workspace";
+// children keep their own name.
+func workspaceEndpoints(host string, workspaces []pmdeployerv1alpha1.ModuleSetupWorkspace) map[string]string {
+	if len(workspaces) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(workspaces))
+	shortest := ""
+	for _, ws := range workspaces {
+		if shortest == "" || len(ws.Path) < len(shortest) {
+			shortest = ws.Path
+		}
+	}
+	for _, ws := range workspaces {
+		name := "workspace"
+		if ws.Path != shortest {
+			name = ws.Path[strings.LastIndex(ws.Path, ":")+1:]
+		}
+		out[name] = host + "/clusters/" + ws.Path
+	}
+	return out
 }
 
 // applyContent applies the manifests declared for one workspace into it.

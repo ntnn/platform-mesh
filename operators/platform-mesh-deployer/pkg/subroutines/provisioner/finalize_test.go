@@ -44,3 +44,20 @@ func TestDeepestFirst(t *testing.T) {
 func TestDeepestFirstEmpty(t *testing.T) {
 	assert.Empty(t, deepestFirst(nil))
 }
+
+// A module's payload addresses its workspaces through the published endpoints,
+// so the module workspace itself gets a stable name and children keep theirs.
+func TestWorkspaceEndpoints(t *testing.T) {
+	got := workspaceEndpoints("https://fp.example.com:6443", []pmdeployerv1alpha1.ModuleSetupWorkspace{
+		{Path: "root:modules:acme"},
+		{Path: "root:modules:acme:validation"},
+	})
+	assert.Equal(t, map[string]string{
+		"workspace":  "https://fp.example.com:6443/clusters/root:modules:acme",
+		"validation": "https://fp.example.com:6443/clusters/root:modules:acme:validation",
+	}, got)
+}
+
+func TestWorkspaceEndpointsEmpty(t *testing.T) {
+	assert.Nil(t, workspaceEndpoints("https://fp.example.com:6443", nil))
+}
