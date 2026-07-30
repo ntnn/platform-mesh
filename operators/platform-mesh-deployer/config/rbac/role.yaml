@@ -1,0 +1,86 @@
+# The deployer reads its own API, drives kcp-operator, mints certificates and
+# moves the resulting secrets and config to the clusters it manages.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: manager-role
+rules:
+  - apiGroups:
+      - deployer.platform-mesh.io
+    resources:
+      - platformmeshes
+      - modules
+      - modulesetups
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups:
+      - deployer.platform-mesh.io
+    resources:
+      - platformmeshes/status
+      - modules/status
+      - modulesetups/status
+    verbs: ["get", "update", "patch"]
+  - apiGroups:
+      - deployer.platform-mesh.io
+    resources:
+      - platformmeshes/finalizers
+      - modules/finalizers
+      - modulesetups/finalizers
+    verbs: ["update"]
+
+  # Admin CRs and the kubeconfigs minted from them.
+  - apiGroups:
+      - operator.kcp.io
+    resources:
+      - rootshards
+      - shards
+      - frontproxies
+      - cacheservers
+      - virtualworkspaces
+      - kubeconfigs
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Compiled CRs are read on the config plane and written on workload clusters.
+  - apiGroups:
+      - deploy.operator.kcp.io
+    resources:
+      - compiledrootshards
+      - compiledshards
+      - compiledfrontproxies
+      - compiledcacheservers
+      - compiledvirtualworkspaces
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups:
+      - deploy.operator.kcp.io
+    resources:
+      - compiledrootshards/status
+      - compiledshards/status
+      - compiledfrontproxies/status
+      - compiledcacheservers/status
+      - compiledvirtualworkspaces/status
+    verbs: ["get", "update", "patch"]
+
+  # Serving certificates for module components fronted by the front proxy.
+  - apiGroups:
+      - cert-manager.io
+    resources:
+      - certificates
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Ingress for exposed kcp endpoints.
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gateways
+      - tlsroutes
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+
+  # Kubeconfig secrets in, generated ConfigMaps and copied secrets out.
+  - apiGroups: [""]
+    resources:
+      - secrets
+      - configmaps
+      - namespaces
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources:
+      - events
+    verbs: ["create", "patch"]
