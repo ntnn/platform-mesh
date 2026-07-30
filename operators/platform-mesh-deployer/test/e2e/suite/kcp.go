@@ -157,21 +157,45 @@ func waitForShards(t *testing.T, rootClient ctrlruntimeclient.Client, expected i
 	return shards
 }
 
-func createWorkspace(t *testing.T, rootClient ctrlruntimeclient.Client, name, shardName string) {
+// createWorkspace creates a workspace below parent. An empty shardName lets
+// kcp schedule it anywhere.
+func createWorkspace(t *testing.T, parent ctrlruntimeclient.Client, name, shardName string) {
 	t.Helper()
 	ws := &tenancyv1alpha1.Workspace{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: tenancyv1alpha1.WorkspaceSpec{
 			// universal has no cross-shard initializers, so it schedules onto any shard.
 			Type: &tenancyv1alpha1.WorkspaceTypeReference{Name: "universal"},
-			Location: &tenancyv1alpha1.WorkspaceLocation{
-				Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"name": shardName}},
-			},
 		},
 	}
-	if err := rootClient.Create(t.Context(), ws); err != nil && !apierrors.IsAlreadyExists(err) {
+	if shardName != "" {
+		ws.Spec.Location = &tenancyv1alpha1.WorkspaceLocation{
+			Selector: &metav1.LabelSelector{MatchLabels: map[string]string{"name": shardName}},
+		}
+	}
+	if err := parent.Create(t.Context(), ws); err != nil && !apierrors.IsAlreadyExists(err) {
 		require.NoError(t, err)
 	}
+}
+
+// ProvisionModuleWorkspace creates root:modules and the module's own workspace
+// below it, and returns a client scoped to that workspace. It stands in for
+// pm-provisioner, which owns the root structure but does not exist yet.
+func (e *Env) ProvisionModuleWorkspace(t *testing.T, root, frontProxy *Cluster, module string) ctrlruntimeclient.Client {
+	t.Helper()
+
+	base := e.mintAdminConfig(t, root, frontProxy)
+	scheme := kcpScheme(t)
+
+	rootClient := clusterClient(t, base, "root", scheme)
+	createWorkspace(t, rootClient, "modules", "")
+	waitWorkspaceReady(t, rootClient, "modules")
+
+	modulesClient := clusterClient(t, base, "root:modules", scheme)
+	createWorkspace(t, modulesClient, module, "")
+	waitWorkspaceReady(t, modulesClient, module)
+
+	return clusterClient(t, base, "root:modules:"+module, scheme)
 }
 
 func waitWorkspaceReady(t *testing.T, rootClient ctrlruntimeclient.Client, name string) {
