@@ -24,6 +24,7 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/exposure"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/pretopology"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/ready"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/rootstructure"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
@@ -51,8 +52,11 @@ type PlatformMeshReconciler struct {
 }
 
 func NewPlatformMeshReconciler(mgr mcmanager.Manager, registry *clusters.Registry, access *kcp.Access) *PlatformMeshReconciler {
+	local := mgr.GetLocalManager().GetClient()
 	subs := []subroutines.Subroutine{
-		topology.New(mgr.GetLocalManager().GetClient(), registry),
+		// Modules that must exist before kcp gate the topology.
+		pretopology.New(local),
+		topology.New(local, registry),
 		exposure.New(registry),
 	}
 	// The kcp root structure is only provisioned when this deployer runs

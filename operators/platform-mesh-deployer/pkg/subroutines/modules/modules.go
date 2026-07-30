@@ -81,17 +81,18 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 		return subroutines.Result{}, err
 	}
 
-	// Post-topology modules are the only ones implemented; pre-topology
-	// modules additionally gate the topology itself and land later.
 	pm, err := s.platformMesh(ctx, mod)
 	if err != nil {
 		return subroutines.Result{}, err
 	}
 
-	ready, reason := topologyReady(pm)
-	if mod.Spec.Stage == pmdeployerv1alpha1.StagePostTopology && !ready {
-		setCondition(mod, ConditionGated, metav1.ConditionFalse, "WaitingForTopology", reason)
-		return subroutines.StopWithRequeue(requeueWait, reason), nil
+	// A pre-topology module has to be deployable before kcp exists, since
+	// the topology waits for it; only post-topology modules wait for kcp.
+	if mod.Spec.Stage == pmdeployerv1alpha1.StagePostTopology {
+		if ready, reason := topologyReady(pm); !ready {
+			setCondition(mod, ConditionGated, metav1.ConditionFalse, "WaitingForTopology", reason)
+			return subroutines.StopWithRequeue(requeueWait, reason), nil
+		}
 	}
 
 	if ok, reason := s.dependenciesReady(ctx, mod); !ok {

@@ -26,6 +26,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 // These are cross-field rules the CRD cannot express, so they are rejected
@@ -86,4 +87,24 @@ func TestProcessAcceptsDeclaredReferences(t *testing.T) {
 	sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(true), mod}, clusters.NewRegistry())
 	_, err := sub.Process(t.Context(), mod)
 	require.NoError(t, err)
+}
+
+// A pre-topology module has to deploy before kcp exists, since the topology
+// waits for it; only post-topology modules wait for the topology.
+func TestProcessPreTopologyDoesNotWaitForTopology(t *testing.T) {
+	mod := testModule()
+	mod.Spec.Stage = pmdeployerv1alpha1.StagePreTopology
+
+	workload := fake.NewClientBuilder().WithScheme(scheme(t)).Build()
+	reg := clusters.NewRegistry()
+	engage(t, reg, "shards-default#customer-a--s1", workload)
+
+	// platformMesh(false) has Ready=False, i.e. no topology yet.
+	sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(false), mod}, reg)
+	res, err := sub.Process(t.Context(), mod)
+	require.NoError(t, err)
+	require.True(t, res.IsContinue(), "a pre-topology module must not wait for kcp")
+
+	require.NoError(t, workload.Get(t.Context(),
+		ctrlruntimeclient.ObjectKey{Namespace: "acme-system", Name: "acme-agent"}, &corev1.Service{}))
 }
