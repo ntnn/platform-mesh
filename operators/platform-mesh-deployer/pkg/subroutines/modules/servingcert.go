@@ -23,6 +23,7 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -150,5 +151,5 @@ func (s *Subroutine) rootShardIssuer(st *state) (string, error) {
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("expected exactly one root shard cluster, found %d", len(engaged))
 	}
-	return pm.Spec.Topology.RootShard.Name + "-" + engaged[0].ClusterID + "-server-ca", nil
+	return names.RootShard(pm.Name, pm.Spec.Topology.RootShard.Name, engaged[0].ClusterID) + "-server-ca", nil
 }

@@ -26,6 +26,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,8 +48,7 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployerv1alpha1
 
 		desired := map[string]struct{}{}
 		for _, cl := range engaged {
-			// "<group>-<clusterID>": the admin CR name teardown matches back to a cluster.
-			name := group.Name + "-" + cl.ClusterID
+			name := names.Shard(pm.Name, group.Name, cl.ClusterID)
 			spec, err := s.buildShardSpec(pm, group, cl.ClusterID, rootRef)
 			if err != nil {
 				return err
@@ -70,7 +70,7 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployerv1alpha1
 }
 
 func (s *Subroutine) buildShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.ShardGroup, clusterID, rootRef string) (operatorv1alpha1.ShardSpec, error) {
-	name := group.Name + "-" + clusterID
+	name := names.Shard(pm.Name, group.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
 		Component:    components.Shard(group.Name),

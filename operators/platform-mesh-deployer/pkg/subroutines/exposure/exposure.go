@@ -25,6 +25,7 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/subroutines"
 
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -79,8 +80,9 @@ func (s *Subroutine) GetName() string { return Name }
 type endpoint struct {
 	component  string
 	shardGroup string
-	name       string // admin CR base name
-	svcSuffix  string
+	// adminName names the admin CR on a cluster, under that kind's name budget.
+	adminName func(platformMesh, clusterID string) string
+	svcSuffix string
 	// backendPort is the Service port; 0 means use the exposure port (front proxy).
 	backendPort int32
 	exposure    pmdeployerv1alpha1.Exposure
@@ -110,9 +112,9 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 			}
 			host, err := celtemplate.Eval(ep.exposure.HostnameTemplate, celCtx)
 			if err != nil {
-				return subroutines.Result{}, fmt.Errorf("%s %q hostname: %w", ep.component, ep.name, err)
+				return subroutines.Result{}, fmt.Errorf("%s hostname: %w", ep.component, err)
 			}
-			adminName := ep.name + "-" + cl.ClusterID
+			adminName := ep.adminName(pm.Name, cl.ClusterID)
 			port := ep.backendPort
 			if port == 0 {
 				port = ep.exposure.Port
@@ -161,14 +163,18 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 func endpoints(pm *pmdeployerv1alpha1.PlatformMesh) []endpoint {
 	t := pm.Spec.Topology
 	eps := []endpoint{{
-		component:   components.RootShard,
-		name:        t.RootShard.Name,
+		component: components.RootShard,
+		adminName: func(pm, clusterID string) string {
+			return names.RootShard(pm, t.RootShard.Name, clusterID)
+		},
 		svcSuffix:   "-kcp",
 		backendPort: shardServicePort,
 		exposure:    t.RootShard.Exposure,
 	}, {
-		component:   components.FrontProxy,
-		name:        t.FrontProxy.Name,
+		component: components.FrontProxy,
+		adminName: func(pm, clusterID string) string {
+			return names.FrontProxy(pm, t.FrontProxy.Name, clusterID)
+		},
 		svcSuffix:   "-front-proxy",
 		backendPort: 0, // front proxy service port == external port
 		exposure:    t.FrontProxy.Exposure,
@@ -179,9 +185,11 @@ func endpoints(pm *pmdeployerv1alpha1.PlatformMesh) []endpoint {
 			continue
 		}
 		eps = append(eps, endpoint{
-			component:   components.Shard(g.Name),
-			shardGroup:  g.Name,
-			name:        g.Name,
+			component:  components.Shard(g.Name),
+			shardGroup: g.Name,
+			adminName: func(pm, clusterID string) string {
+				return names.Shard(pm, g.Name, clusterID)
+			},
 			svcSuffix:   "-shard-kcp",
 			backendPort: shardServicePort,
 			exposure:    *g.Exposure,

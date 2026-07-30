@@ -24,6 +24,7 @@ import (
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 
 	corev1 "k8s.io/api/core/v1"
@@ -80,7 +81,7 @@ func TestFrontProxyMappingsSortedLongestFirst(t *testing.T) {
 
 	fp := &operatorv1alpha1.FrontProxy{}
 	require.NoError(t, cl.Get(t.Context(),
-		ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "fp-fp"}, fp))
+		ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.FrontProxy("customer-a", "fp", "fp")}, fp))
 
 	require.Len(t, fp.Spec.AdditionalPathMappings, 2)
 	assert.Equal(t, "/services/other/deeper/", fp.Spec.AdditionalPathMappings[0].Path)
@@ -121,6 +122,6 @@ func TestFrontProxyWithoutModules(t *testing.T) {
 
 	fp := &operatorv1alpha1.FrontProxy{}
 	require.NoError(t, cl.Get(t.Context(),
-		ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "fp-fp"}, fp))
+		ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.FrontProxy("customer-a", "fp", "fp")}, fp))
 	assert.Empty(t, fp.Spec.AdditionalPathMappings)
 }

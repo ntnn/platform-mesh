@@ -27,6 +27,7 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -96,21 +97,21 @@ func TestKubeconfigTarget(t *testing.T) {
 		instance("app", pmdeployerv1alpha1.PlacementRootShard, "east", ""))
 	require.NoError(t, err)
 	require.NotNil(t, front.FrontProxyRef)
-	assert.Equal(t, "fp-fp1", front.FrontProxyRef.Name)
+	assert.Equal(t, names.FrontProxy("customer-a", "fp", "fp1"), front.FrontProxyRef.Name)
 
 	root, err := sub.kubeconfigTarget(st,
 		pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetRootShard},
 		instance("app", pmdeployerv1alpha1.PlacementRootShard, "east", ""))
 	require.NoError(t, err)
 	require.NotNil(t, root.RootShardRef)
-	assert.Equal(t, "root-east", root.RootShardRef.Name)
+	assert.Equal(t, names.RootShard("customer-a", "root", "east"), root.RootShardRef.Name)
 
 	shard, err := sub.kubeconfigTarget(st,
 		pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetShard},
 		instance("agent", pmdeployerv1alpha1.PlacementPerShard, "s1", "default"))
 	require.NoError(t, err)
 	require.NotNil(t, shard.ShardRef)
-	assert.Equal(t, "default-s1", shard.ShardRef.Name)
+	assert.Equal(t, names.Shard("customer-a", "default", "s1"), shard.ShardRef.Name)
 }
 
 func TestKubeconfigTargetErrors(t *testing.T) {
@@ -172,7 +173,7 @@ func TestRootShardIssuer(t *testing.T) {
 	sub, st := internalSubroutine(t, "rootshard#customer-a--east")
 	issuer, err := sub.rootShardIssuer(st)
 	require.NoError(t, err)
-	assert.Equal(t, "root-east-server-ca", issuer)
+	assert.Equal(t, names.RootShard("customer-a", "root", "east")+"-server-ca", issuer)
 
 	sub, st = internalSubroutine(t)
 	_, err = sub.rootShardIssuer(st)

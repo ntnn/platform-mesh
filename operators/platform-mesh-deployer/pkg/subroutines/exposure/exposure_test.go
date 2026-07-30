@@ -26,6 +26,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/exposure"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 
@@ -104,19 +105,19 @@ func TestExposureCreatesRoutes(t *testing.T) {
 	_, err := sub.Process(context.Background(), pm)
 	require.NoError(t, err)
 
-	root := getRoute(t, rootCl, "pm", "root-east-gw")
+	root := getRoute(t, rootCl, "pm", names.RootShard("customer-a", "root", "east")+"-gw")
 	assert.Equal(t, []gwapiv1alpha2.Hostname{"root.east.sslip.io"}, root.Spec.Hostnames)
-	assert.Equal(t, "root-east-kcp", string(root.Spec.Rules[0].BackendRefs[0].Name))
+	assert.Equal(t, names.RootShard("customer-a", "root", "east")+"-kcp", string(root.Spec.Rules[0].BackendRefs[0].Name))
 	assert.Equal(t, gwapiv1alpha2.PortNumber(6443), *root.Spec.Rules[0].BackendRefs[0].Port)
 
-	shard := getRoute(t, shardCl, "pm", "eu-west-gw")
+	shard := getRoute(t, shardCl, "pm", names.Shard("customer-a", "eu", "west")+"-gw")
 	assert.Equal(t, []gwapiv1alpha2.Hostname{"shards-eu.west.sslip.io"}, shard.Spec.Hostnames)
-	assert.Equal(t, "eu-west-shard-kcp", string(shard.Spec.Rules[0].BackendRefs[0].Name))
+	assert.Equal(t, names.Shard("customer-a", "eu", "west")+"-shard-kcp", string(shard.Spec.Rules[0].BackendRefs[0].Name))
 	assert.Equal(t, gwapiv1alpha2.PortNumber(6443), *shard.Spec.Rules[0].BackendRefs[0].Port)
 
-	fp := getRoute(t, fpCl, "pm", "fp-fpc-gw")
+	fp := getRoute(t, fpCl, "pm", names.FrontProxy("customer-a", "fp", "fpc")+"-gw")
 	assert.Equal(t, []gwapiv1alpha2.Hostname{"fp.fpc.sslip.io"}, fp.Spec.Hostnames)
-	assert.Equal(t, "fp-fpc-front-proxy", string(fp.Spec.Rules[0].BackendRefs[0].Name))
+	assert.Equal(t, names.FrontProxy("customer-a", "fp", "fpc")+"-front-proxy", string(fp.Spec.Rules[0].BackendRefs[0].Name))
 	assert.Equal(t, gwapiv1alpha2.PortNumber(31443), *fp.Spec.Rules[0].BackendRefs[0].Port)
 	require.Len(t, fp.Spec.ParentRefs, 1)
 	assert.Equal(t, "eg", string(fp.Spec.ParentRefs[0].Name))
@@ -187,7 +188,7 @@ func TestExposureTeardownStale(t *testing.T) {
 	list := &gwapiv1alpha2.TLSRouteList{}
 	require.NoError(t, fpCl.List(context.Background(), list))
 	require.Len(t, list.Items, 1)
-	assert.Equal(t, "fp-east-gw", list.Items[0].Name)
+	assert.Equal(t, names.FrontProxy("customer-a", "fp", "east")+"-gw", list.Items[0].Name)
 	assert.Equal(t, "east", list.Items[0].Labels[topology.LabelCluster])
 }
 

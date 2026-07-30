@@ -26,6 +26,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -44,7 +45,7 @@ func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployerv1alp
 		return fmt.Errorf("no root shard cluster engaged")
 	}
 	clusterID := engaged[0].ClusterID
-	name := group.Name + "-" + clusterID
+	name := names.RootShard(pm.Name, group.Name, clusterID)
 
 	spec, err := s.buildRootShardSpec(pm, group, clusterID)
 	if err != nil {
@@ -67,7 +68,7 @@ func (s *Subroutine) rootShardRef(pm *pmdeployerv1alpha1.PlatformMesh) (string, 
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("root shard not ready")
 	}
-	return pm.Spec.Topology.RootShard.Name + "-" + engaged[0].ClusterID, nil
+	return names.RootShard(pm.Name, pm.Spec.Topology.RootShard.Name, engaged[0].ClusterID), nil
 }
 
 // frontProxyExternal returns the front-proxy's hostname and port.
@@ -89,7 +90,7 @@ func (s *Subroutine) frontProxyExternal(pm *pmdeployerv1alpha1.PlatformMesh) (st
 }
 
 func (s *Subroutine) buildRootShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.RootShard, clusterID string) (operatorv1alpha1.RootShardSpec, error) {
-	name := group.Name + "-" + clusterID
+	name := names.RootShard(pm.Name, group.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
 		Component:    components.RootShard,

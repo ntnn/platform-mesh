@@ -26,6 +26,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -97,7 +98,7 @@ func TestReconcileRootShard(t *testing.T) {
 	require.NoError(t, err)
 
 	rs := &operatorv1alpha1.RootShard{}
-	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "root-east"}, rs))
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.RootShard("customer-a", "root", "east")}, rs))
 	require.Len(t, rs.Spec.Etcd.Endpoints, 1)
 	assert.Equal(t, "https://etcd-customer-a.pm:2379", rs.Spec.Etcd.Endpoints[0])
 	assert.Equal(t, "/customer-a/east", rs.Spec.Etcd.Prefix)
@@ -127,7 +128,7 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 	pm := platformMesh()
 	stale := &operatorv1alpha1.RootShard{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "root-west",
+			Name:      names.RootShard("customer-a", "root", "west"),
 			Namespace: "pm",
 			Labels: map[string]string{
 				topology.LabelPlatformMesh: "customer-a",
@@ -145,8 +146,8 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 	_, err := sub.Process(t.Context(), pm)
 	require.NoError(t, err)
 
-	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "root-east"}, &operatorv1alpha1.RootShard{}))
-	err = cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "root-west"}, &operatorv1alpha1.RootShard{})
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.RootShard("customer-a", "root", "east")}, &operatorv1alpha1.RootShard{}))
+	err = cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.RootShard("customer-a", "root", "west")}, &operatorv1alpha1.RootShard{})
 	assert.True(t, apierrors.IsNotFound(err), "expected stale RootShard torn down, got %v", err)
 }
 
@@ -179,11 +180,11 @@ func TestReconcileShard(t *testing.T) {
 	require.NoError(t, err)
 
 	sh := &operatorv1alpha1.Shard{}
-	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "eu-west"}, sh))
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.Shard("customer-a", "eu", "west")}, sh))
 	assert.Equal(t, []string{"https://etcd-customer-a.pm:2379"}, sh.Spec.Etcd.Endpoints)
 	assert.Equal(t, "/customer-a/eu/west", sh.Spec.Etcd.Prefix)
 	require.NotNil(t, sh.Spec.RootShard.Reference)
-	assert.Equal(t, "root-east", sh.Spec.RootShard.Reference.Name)
+	assert.Equal(t, names.RootShard("customer-a", "root", "east"), sh.Spec.RootShard.Reference.Name)
 	assert.Equal(t, "https://shards-eu.west.sslip.io:31443", sh.Spec.ShardBaseURL)
 	require.NotNil(t, sh.Spec.Cache)
 	require.NotNil(t, sh.Spec.Cache.Reference)
@@ -211,9 +212,9 @@ func TestReconcileFrontProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	fp := &operatorv1alpha1.FrontProxy{}
-	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "fp-west"}, fp))
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.FrontProxy("customer-a", "fp", "west")}, fp))
 	require.NotNil(t, fp.Spec.RootShard.Reference)
-	assert.Equal(t, "root-east", fp.Spec.RootShard.Reference.Name)
+	assert.Equal(t, names.RootShard("customer-a", "root", "east"), fp.Spec.RootShard.Reference.Name)
 	assert.Equal(t, "api.customer-a.example.com", fp.Spec.External.Hostname)
 	assert.Equal(t, uint32(443), fp.Spec.External.Port)
 	assert.Equal(t, components.FrontProxy, fp.Labels[topology.LabelComponent])
@@ -242,7 +243,7 @@ func TestReconcileCacheServer(t *testing.T) {
 	require.NoError(t, err)
 
 	cs := &operatorv1alpha1.CacheServer{}
-	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "global-west"}, cs))
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.CacheServer("customer-a", "global", "west")}, cs))
 	require.NotNil(t, cs.Spec.Etcd)
 	assert.Equal(t, []string{"https://cache-etcd-customer-a.pm:2379"}, cs.Spec.Etcd.Endpoints)
 	assert.Equal(t, "/customer-a/cache", cs.Spec.Etcd.Prefix)
@@ -269,9 +270,9 @@ func TestReconcileVirtualWorkspace(t *testing.T) {
 	require.NoError(t, err)
 
 	vw := &operatorv1alpha1.VirtualWorkspace{}
-	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "root-east"}, vw))
+	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.VirtualWorkspace("customer-a", "root", "east")}, vw))
 	require.NotNil(t, vw.Spec.Target.RootShardRef)
-	assert.Equal(t, "root-east", vw.Spec.Target.RootShardRef.Name)
+	assert.Equal(t, names.RootShard("customer-a", "root", "east"), vw.Spec.Target.RootShardRef.Name)
 	assert.Equal(t, "vw.customer-a.example.com", vw.Spec.External.Hostname)
 	assert.Equal(t, uint32(443), vw.Spec.External.Port)
 	assert.Equal(t, components.VirtualWorkspace, vw.Labels[topology.LabelComponent])
@@ -292,4 +293,49 @@ func TestReconcileVirtualWorkspaceEmbeddedSkipped(t *testing.T) {
 	list := &operatorv1alpha1.VirtualWorkspaceList{}
 	require.NoError(t, cl.List(t.Context(), list))
 	assert.Empty(t, list.Items)
+}
+
+func TestReconcileNamesAreUniquePerPlatformMesh(t *testing.T) {
+	a := platformMesh()
+	b := platformMesh()
+	b.Name = "customer-b"
+
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(a, b).Build()
+	reg := clusters.NewRegistry()
+	for _, pm := range []string{"customer-a", "customer-b"} {
+		engage(t, reg, multiclusterName("rootshard", pm, "east"))
+		engage(t, reg, multiclusterName("frontproxy", pm, "east"))
+	}
+
+	sub := topology.New(cl, reg)
+	for _, pm := range []*pmdeployerv1alpha1.PlatformMesh{a, b} {
+		_, err := sub.Process(t.Context(), pm)
+		require.NoError(t, err)
+	}
+
+	list := &operatorv1alpha1.RootShardList{}
+	require.NoError(t, cl.List(t.Context(), list, ctrlruntimeclient.InNamespace("pm")))
+	require.Len(t, list.Items, 2, "both installations must keep their own root shard")
+
+	// Each root shard belongs to exactly one PlatformMesh and points at its own front proxy.
+	byName := map[string]string{}
+	for _, rs := range list.Items {
+		byName[rs.Name] = rs.Labels[topology.LabelPlatformMesh]
+	}
+	assert.Equal(t, map[string]string{
+		names.RootShard("customer-a", "root", "east"): "customer-a",
+		names.RootShard("customer-b", "root", "east"): "customer-b",
+	}, byName)
+
+	fps := &operatorv1alpha1.FrontProxyList{}
+	require.NoError(t, cl.List(t.Context(), fps, ctrlruntimeclient.InNamespace("pm")))
+	require.Len(t, fps.Items, 2)
+	for _, fp := range fps.Items {
+		pm := fp.Labels[topology.LabelPlatformMesh]
+		assert.Equal(t, names.RootShard(pm, "root", "east"), fp.Spec.RootShard.Reference.Name)
+	}
+}
+
+func multiclusterName(component, platformMesh, clusterID string) string {
+	return component + "#" + platformMesh + "--" + clusterID
 }

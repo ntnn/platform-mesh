@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/test/e2e/suite"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -42,7 +43,7 @@ func TestConfigWorkloadCluster(t *testing.T) {
 	pm := platformMesh(env.EtcdEndpoint())
 	require.NoError(t, env.Config.Client.Create(t.Context(), pm))
 
-	rootName := "root-" + workload.NodeIP
+	rootName := names.RootShard(suite.PlatformMeshName, "root", workload.NodeIP)
 	rootShard := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: rootName}
 
 	// Config plane: the deployer creates the admin CR and the config kcp-operator

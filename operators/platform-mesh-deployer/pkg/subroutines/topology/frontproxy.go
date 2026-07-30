@@ -25,6 +25,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,8 +49,7 @@ func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployerv1al
 	engaged := s.registry.ClustersFor(pm.Name, components.FrontProxy)
 	desired := map[string]struct{}{}
 	for _, cl := range engaged {
-		// "<frontProxy>-<clusterID>": the admin CR name teardown matches back to a cluster.
-		name := frontProxy.Name + "-" + cl.ClusterID
+		name := names.FrontProxy(pm.Name, frontProxy.Name, cl.ClusterID)
 		spec, err := s.buildFrontProxySpec(pm, frontProxy, cl.ClusterID, rootRef)
 		if err != nil {
 			return err
@@ -68,7 +68,7 @@ func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployerv1al
 }
 
 func (s *Subroutine) buildFrontProxySpec(pm *pmdeployerv1alpha1.PlatformMesh, frontProxy pmdeployerv1alpha1.FrontProxy, clusterID, rootRef string) (operatorv1alpha1.FrontProxySpec, error) {
-	name := frontProxy.Name + "-" + clusterID
+	name := names.FrontProxy(pm.Name, frontProxy.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
 		Component:    components.FrontProxy,

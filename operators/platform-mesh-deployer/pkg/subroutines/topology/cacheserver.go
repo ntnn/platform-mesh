@@ -23,6 +23,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -36,8 +37,7 @@ func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployerv1a
 	if cacheServer != nil {
 		engaged := s.registry.ClustersFor(pm.Name, components.CacheServer)
 		for _, cl := range engaged {
-			// "<cacheServer>-<clusterID>": the admin CR name teardown matches back to a cluster.
-			name := cacheServer.Name + "-" + cl.ClusterID
+			name := names.CacheServer(pm.Name, cacheServer.Name, cl.ClusterID)
 			spec, err := s.buildCacheServerSpec(pm, *cacheServer, cl.ClusterID)
 			if err != nil {
 				return err
@@ -56,7 +56,7 @@ func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployerv1a
 }
 
 func (s *Subroutine) buildCacheServerSpec(pm *pmdeployerv1alpha1.PlatformMesh, cacheServer pmdeployerv1alpha1.CacheServer, clusterID string) (operatorv1alpha1.CacheServerSpec, error) {
-	name := cacheServer.Name + "-" + clusterID
+	name := names.CacheServer(pm.Name, cacheServer.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
 		Component:    components.CacheServer,

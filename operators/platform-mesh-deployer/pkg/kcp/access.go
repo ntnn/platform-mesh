@@ -29,6 +29,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -132,5 +133,5 @@ func (a *Access) frontProxyRef(pm *pmdeployerv1alpha1.PlatformMesh) (string, err
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("expected exactly one front proxy cluster, found %d", len(engaged))
 	}
-	return pm.Spec.Topology.FrontProxy.Name + "-" + engaged[0].ClusterID, nil
+	return names.FrontProxy(pm.Name, pm.Spec.Topology.FrontProxy.Name, engaged[0].ClusterID), nil
 }

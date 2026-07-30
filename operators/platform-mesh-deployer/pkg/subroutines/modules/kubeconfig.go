@@ -24,6 +24,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -120,20 +121,23 @@ func (s *Subroutine) syncKubeconfig(ctx context.Context, st *state, inst module.
 }
 
 // kubeconfigTarget resolves which kcp endpoint a kubeconfig is minted against.
-// The referenced topology object is named "<spec name>-<cluster ID>".
 func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployerv1alpha1.ModuleKubeconfig, inst module.Instance) (operatorv1alpha1.KubeconfigTarget, error) {
 	pm := st.platformMesh
 
 	switch kc.Target {
 	case pmdeployerv1alpha1.KubeconfigTargetFrontProxy:
-		name, err := s.singleTarget(pm.Name, components.FrontProxy, pm.Spec.Topology.FrontProxy.Name, kc.Name)
+		name, err := s.singleTarget(pm.Name, components.FrontProxy, kc.Name, func(clusterID string) string {
+			return names.FrontProxy(pm.Name, pm.Spec.Topology.FrontProxy.Name, clusterID)
+		})
 		if err != nil {
 			return operatorv1alpha1.KubeconfigTarget{}, err
 		}
 		return operatorv1alpha1.KubeconfigTarget{FrontProxyRef: &corev1.LocalObjectReference{Name: name}}, nil
 
 	case pmdeployerv1alpha1.KubeconfigTargetRootShard:
-		name, err := s.singleTarget(pm.Name, components.RootShard, pm.Spec.Topology.RootShard.Name, kc.Name)
+		name, err := s.singleTarget(pm.Name, components.RootShard, kc.Name, func(clusterID string) string {
+			return names.RootShard(pm.Name, pm.Spec.Topology.RootShard.Name, clusterID)
+		})
 		if err != nil {
 			return operatorv1alpha1.KubeconfigTarget{}, err
 		}
@@ -146,7 +150,7 @@ func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployerv1alpha1.ModuleKub
 			return operatorv1alpha1.KubeconfigTarget{}, fmt.Errorf(
 				"kubeconfig %q targets a shard but component %q is not placed per shard", kc.Name, inst.Component.Name)
 		}
-		name := inst.ShardGroup + "-" + inst.Cluster.ClusterID
+		name := names.Shard(pm.Name, inst.ShardGroup, inst.Cluster.ClusterID)
 		return operatorv1alpha1.KubeconfigTarget{ShardRef: &corev1.LocalObjectReference{Name: name}}, nil
 
 	default:
@@ -157,11 +161,11 @@ func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployerv1alpha1.ModuleKub
 // singleTarget resolves a component that must be engaged on exactly one
 // cluster. Several front proxies would each need their own kubeconfig, which
 // the payload cannot express yet.
-func (s *Subroutine) singleTarget(pm, component, specName, kubeconfig string) (string, error) {
+func (s *Subroutine) singleTarget(pm, component, kubeconfig string, name func(clusterID string) string) (string, error) {
 	engaged := s.registry.ClustersFor(pm, component)
 	switch len(engaged) {
 	case 1:
-		return specName + "-" + engaged[0].ClusterID, nil
+		return name(engaged[0].ClusterID), nil
 	case 0:
 		return "", fmt.Errorf("kubeconfig %q: no %s cluster engaged yet", kubeconfig, component)
 	default:

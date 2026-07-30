@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/test/e2e/suite"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -52,10 +53,10 @@ func TestDistributedClusters(t *testing.T) {
 		name    string
 		cluster *suite.Cluster
 	}{
-		{"CompiledRootShard", "root-" + rs.NodeIP, rs},
-		{"CompiledShard", "default-" + sh1.NodeIP, sh1},
-		{"CompiledShard", "default-" + sh2.NodeIP, sh2},
-		{"CompiledFrontProxy", "fp-" + fp.NodeIP, fp},
+		{"CompiledRootShard", names.RootShard(suite.PlatformMeshName, "root", rs.NodeIP), rs},
+		{"CompiledShard", names.Shard(suite.PlatformMeshName, "default", sh1.NodeIP), sh1},
+		{"CompiledShard", names.Shard(suite.PlatformMeshName, "default", sh2.NodeIP), sh2},
+		{"CompiledFrontProxy", names.FrontProxy(suite.PlatformMeshName, "fp", fp.NodeIP), fp},
 	}
 	for _, c := range cases {
 		require.Eventuallyf(t, func() bool {

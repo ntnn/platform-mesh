@@ -51,6 +51,9 @@ const (
 	// ProviderNamespace is where the deployer watches kubeconfig secrets and creates admin CRs.
 	ProviderNamespace = "platform-mesh-system"
 
+	// PlatformMeshName is the installation every e2e fixture deploys.
+	PlatformMeshName = "customer-a"
+
 	defaultKCPOperatorImage = "ghcr.io/ntnn/kcp-operator:split"
 
 	kindClusterPrefix = "pm-deployer-e2e"

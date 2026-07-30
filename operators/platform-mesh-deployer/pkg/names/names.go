@@ -69,3 +69,29 @@ func hash(s string, n int) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])[:n]
 }
+
+// RootShard names the RootShard admin CR of a root shard group.
+func RootShard(platformMesh, group, clusterID string) string {
+	return Scoped(MaxRootShard, platformMesh, group, clusterID)
+}
+
+// Shard names the Shard admin CR of a shard group.
+func Shard(platformMesh, group, clusterID string) string {
+	return Scoped(MaxShard, platformMesh, group, clusterID)
+}
+
+// FrontProxy names the FrontProxy admin CR.
+func FrontProxy(platformMesh, frontProxy, clusterID string) string {
+	return Scoped(MaxFrontProxy, platformMesh, frontProxy, clusterID)
+}
+
+// CacheServer names the CacheServer admin CR.
+func CacheServer(platformMesh, cacheServer, clusterID string) string {
+	return Scoped(MaxCacheServer, platformMesh, cacheServer, clusterID)
+}
+
+// VirtualWorkspace names the VirtualWorkspace admin CR serving a shard group.
+// It has its own budget and so does not match the shard's name.
+func VirtualWorkspace(platformMesh, group, clusterID string) string {
+	return Scoped(MaxVirtualWorkspace, platformMesh, group, clusterID)
+}

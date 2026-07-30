@@ -24,6 +24,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -38,12 +39,13 @@ func (s *Subroutine) reconcileVirtualWorkspaces(ctx context.Context, pm *pmdeplo
 	root := pm.Spec.Topology.RootShard
 	if root.VirtualWorkspaces.Mode == pmdeployerv1alpha1.VirtualWorkspaceModeStandalone {
 		for _, cl := range s.registry.ClustersFor(pm.Name, components.RootShard) {
-			shard := root.Name + "-" + cl.ClusterID
+			name := names.VirtualWorkspace(pm.Name, root.Name, cl.ClusterID)
+			shard := names.RootShard(pm.Name, root.Name, cl.ClusterID)
 			target := operatorv1alpha1.VirtualWorkspaceTarget{RootShardRef: &corev1.LocalObjectReference{Name: shard}}
-			if err := s.reconcileVirtualWorkspace(ctx, pm, root.VirtualWorkspaces, root.Name, shard, cl.ClusterID, target); err != nil {
+			if err := s.reconcileVirtualWorkspace(ctx, pm, root.VirtualWorkspaces, root.Name, name, cl.ClusterID, target); err != nil {
 				return err
 			}
-			desired[shard] = struct{}{}
+			desired[name] = struct{}{}
 		}
 	}
 
@@ -53,12 +55,13 @@ func (s *Subroutine) reconcileVirtualWorkspaces(ctx context.Context, pm *pmdeplo
 			continue
 		}
 		for _, cl := range s.registry.ClustersFor(pm.Name, components.Shard(group.Name)) {
-			shard := group.Name + "-" + cl.ClusterID
+			name := names.VirtualWorkspace(pm.Name, group.Name, cl.ClusterID)
+			shard := names.Shard(pm.Name, group.Name, cl.ClusterID)
 			target := operatorv1alpha1.VirtualWorkspaceTarget{ShardRef: &corev1.LocalObjectReference{Name: shard}}
-			if err := s.reconcileVirtualWorkspace(ctx, pm, group.VirtualWorkspaces, group.Name, shard, cl.ClusterID, target); err != nil {
+			if err := s.reconcileVirtualWorkspace(ctx, pm, group.VirtualWorkspaces, group.Name, name, cl.ClusterID, target); err != nil {
 				return err
 			}
-			desired[shard] = struct{}{}
+			desired[name] = struct{}{}
 		}
 	}
 

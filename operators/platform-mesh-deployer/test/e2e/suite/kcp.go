@@ -26,6 +26,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -58,8 +60,8 @@ func kcpScheme(t *testing.T) *runtime.Scheme {
 func (e *Env) VerifyKcp(t *testing.T, root, frontProxy *Cluster, expectedShards int) {
 	t.Helper()
 
-	waitDeploymentReady(t, frontProxy, ProviderNamespace, "fp-"+frontProxy.NodeIP+"-front-proxy")
-	waitDeploymentReady(t, root, ProviderNamespace, "root-"+root.NodeIP+"-kcp")
+	waitDeploymentReady(t, frontProxy, ProviderNamespace, names.FrontProxy(PlatformMeshName, "fp", frontProxy.NodeIP)+"-front-proxy")
+	waitDeploymentReady(t, root, ProviderNamespace, names.RootShard(PlatformMeshName, "root", root.NodeIP)+"-kcp")
 
 	base := e.mintAdminConfig(t, root, frontProxy)
 	scheme := kcpScheme(t)
@@ -101,7 +103,7 @@ func (e *Env) mintAdminConfig(t *testing.T, root, frontProxy *Cluster) *rest.Con
 	kc := &operatorv1alpha1.Kubeconfig{
 		ObjectMeta: metav1.ObjectMeta{Name: "e2e-admin", Namespace: ProviderNamespace},
 		Spec: operatorv1alpha1.KubeconfigSpec{
-			Target:          operatorv1alpha1.KubeconfigTarget{FrontProxyRef: &corev1.LocalObjectReference{Name: "fp-" + frontProxy.NodeIP}},
+			Target:          operatorv1alpha1.KubeconfigTarget{FrontProxyRef: &corev1.LocalObjectReference{Name: names.FrontProxy(PlatformMeshName, "fp", frontProxy.NodeIP)}},
 			TargetWorkspace: "root",
 			Username:        "e2e-admin",
 			Groups:          []string{"system:kcp:admin"},

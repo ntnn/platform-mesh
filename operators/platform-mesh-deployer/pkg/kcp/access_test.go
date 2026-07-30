@@ -26,6 +26,7 @@ import (
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -111,7 +112,7 @@ func TestConfigMintsKubeconfigAndWaits(t *testing.T) {
 	assert.Equal(t, "root", kc.Spec.TargetWorkspace)
 	assert.Equal(t, []string{"system:kcp:admin"}, kc.Spec.Groups)
 	require.NotNil(t, kc.Spec.Target.FrontProxyRef)
-	assert.Equal(t, "fp-fp1", kc.Spec.Target.FrontProxyRef.Name)
+	assert.Equal(t, names.FrontProxy("customer-a", "fp", "fp1"), kc.Spec.Target.FrontProxyRef.Name)
 }
 
 // Once the secret exists the config points at the front proxy origin, with the
