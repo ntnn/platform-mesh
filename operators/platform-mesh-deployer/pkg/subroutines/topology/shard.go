@@ -18,7 +18,6 @@ package topology
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -49,7 +48,7 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployerv1alpha1
 		desired := map[string]struct{}{}
 		for _, cl := range engaged {
 			name := names.Shard(pm.Name, group.Name, cl.ClusterID)
-			spec, err := s.buildShardSpec(pm, group, cl.ClusterID, rootRef)
+			spec, err := s.buildShardSpec(ctx, pm, group, cl.ClusterID, rootRef)
 			if err != nil {
 				return err
 			}
@@ -69,7 +68,7 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployerv1alpha1
 	return nil
 }
 
-func (s *Subroutine) buildShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.ShardGroup, clusterID, rootRef string) (operatorv1alpha1.ShardSpec, error) {
+func (s *Subroutine) buildShardSpec(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.ShardGroup, clusterID, rootRef string) (operatorv1alpha1.ShardSpec, error) {
 	name := names.Shard(pm.Name, group.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -79,14 +78,9 @@ func (s *Subroutine) buildShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, group p
 	}
 
 	var spec operatorv1alpha1.ShardSpec
-	if group.Template != nil {
-		data, err := json.Marshal(group.Template)
-		if err != nil {
-			return spec, err
-		}
-		if err := json.Unmarshal(data, &spec); err != nil {
-			return spec, err
-		}
+	tpl := &pmdeployerv1alpha1.ShardTemplate{}
+	if err := s.resolveTemplate(ctx, pm, group.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+		return spec, err
 	}
 
 	if err := resolveEtcd(&spec.Etcd, celCtx, "shard "+name); err != nil {

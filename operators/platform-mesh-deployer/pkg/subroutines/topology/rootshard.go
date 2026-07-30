@@ -18,7 +18,6 @@ package topology
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"strconv"
@@ -47,7 +46,7 @@ func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployerv1alp
 	clusterID := engaged[0].ClusterID
 	name := names.RootShard(pm.Name, group.Name, clusterID)
 
-	spec, err := s.buildRootShardSpec(pm, group, clusterID)
+	spec, err := s.buildRootShardSpec(ctx, pm, group, clusterID)
 	if err != nil {
 		return err
 	}
@@ -89,7 +88,7 @@ func (s *Subroutine) frontProxyExternal(pm *pmdeployerv1alpha1.PlatformMesh) (st
 	return host, uint32(fp.Exposure.Port), nil
 }
 
-func (s *Subroutine) buildRootShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.RootShard, clusterID string) (operatorv1alpha1.RootShardSpec, error) {
+func (s *Subroutine) buildRootShardSpec(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.RootShard, clusterID string) (operatorv1alpha1.RootShardSpec, error) {
 	name := names.RootShard(pm.Name, group.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -99,14 +98,9 @@ func (s *Subroutine) buildRootShardSpec(pm *pmdeployerv1alpha1.PlatformMesh, gro
 	}
 
 	var spec operatorv1alpha1.RootShardSpec
-	if group.Template != nil {
-		data, err := json.Marshal(group.Template)
-		if err != nil {
-			return spec, err
-		}
-		if err := json.Unmarshal(data, &spec); err != nil {
-			return spec, err
-		}
+	tpl := &pmdeployerv1alpha1.RootShardTemplate{}
+	if err := s.resolveTemplate(ctx, pm, group.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+		return spec, err
 	}
 
 	if err := resolveEtcd(&spec.Etcd, celCtx, "root shard "+name); err != nil {

@@ -27,6 +27,17 @@ rules:
       - modulesetups/finalizers
     verbs: ["update"]
 
+  # Templates are read by the topology and held by a finalizer while in use.
+  - apiGroups:
+      - deployer.platform-mesh.io
+    resources:
+      - rootshardtemplates
+      - shardtemplates
+      - frontproxytemplates
+      - cacheservertemplates
+      - virtualworkspacetemplates
+    verbs: ["get", "list", "watch", "update", "patch"]
+
   # Admin CRs and the kubeconfigs minted from them.
   - apiGroups:
       - operator.kcp.io

@@ -19,8 +19,6 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
 // OCMRepository describes an OCM repository and the component to resolve from it.
@@ -116,10 +114,11 @@ type VirtualWorkspaceSpec struct {
 	// +kubebuilder:default=Embedded
 	Mode VirtualWorkspaceMode `json:"mode,omitempty"`
 
-	// Template is merged onto the rendered VirtualWorkspace resource.
+	// TemplateRef references a VirtualWorkspaceTemplate merged onto the
+	// rendered VirtualWorkspace resource.
 	// Deployer-owned fields (target, external) win over template values.
 	// +optional
-	Template *operatorv1alpha1.VirtualWorkspaceTemplateSpec `json:"template,omitempty"`
+	TemplateRef *TemplateReference `json:"templateRef,omitempty"`
 
 	// Exposure describes how the virtual workspaces endpoint is exposed.
 	// Virtual workspaces are public regardless of mode, so exposure is
@@ -134,9 +133,10 @@ type ShardGroup struct {
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// Template is merged onto the rendered Shard resources.
+	// TemplateRef references a ShardTemplate merged onto the rendered Shard
+	// resources.
 	// +optional
-	Template *operatorv1alpha1.ShardTemplateSpec `json:"template,omitempty"`
+	TemplateRef *TemplateReference `json:"templateRef,omitempty"`
 
 	// CacheServerRef references a cache server by name.
 	// Defaults to the sole defined cache server.
@@ -159,11 +159,12 @@ type FrontProxy struct {
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// Template is merged onto the rendered FrontProxy resource.
+	// TemplateRef references a FrontProxyTemplate merged onto the rendered
+	// FrontProxy resource.
 	// Deployer-owned fields (rootShard ref, external/exposure) win over
 	// template values.
 	// +optional
-	Template *operatorv1alpha1.FrontProxyTemplateSpec `json:"template,omitempty"`
+	TemplateRef *TemplateReference `json:"templateRef,omitempty"`
 
 	// Exposure describes how the front proxy is exposed. Front proxies are
 	// public by definition, so exposure is required.
@@ -171,16 +172,17 @@ type FrontProxy struct {
 }
 
 // CacheServer describes a kcp cache server deployment.
-// +kubebuilder:validation:XValidation:rule="!has(self.seedRef) || self.seedRef == ''",message="seedRef is not supported in v1alpha1 (see kcp-dev/kcp#4055)"
+// +kubebuilder:validation:XValidation:rule="!has(self.seedRef) || self.seedRef == ”",message="seedRef is not supported in v1alpha1 (see kcp-dev/kcp#4055)"
 type CacheServer struct {
 	// Name identifies the cache server, e.g. "global", "eu", "us".
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// Template is merged onto the rendered CacheServer resource.
+	// TemplateRef references a CacheServerTemplate merged onto the rendered
+	// CacheServer resource.
 	// Deployer-owned fields (certificates) win over template values.
 	// +optional
-	Template *operatorv1alpha1.CacheServerTemplateSpec `json:"template,omitempty"`
+	TemplateRef *TemplateReference `json:"templateRef,omitempty"`
 
 	// SeedRef references another cache server to seed from, enabling a
 	// future federation upgrade path. Must be empty in v1alpha1.
@@ -195,9 +197,10 @@ type RootShard struct {
 	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
-	// Template is merged onto the rendered RootShard resources.
+	// TemplateRef references a RootShardTemplate merged onto the rendered
+	// RootShard resources.
 	// +optional
-	Template *operatorv1alpha1.RootShardTemplateSpec `json:"template,omitempty"`
+	TemplateRef *TemplateReference `json:"templateRef,omitempty"`
 
 	// CacheServerRef references a cache server by name.
 	// +optional

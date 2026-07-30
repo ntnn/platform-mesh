@@ -76,8 +76,7 @@ func TestModule(t *testing.T) {
 		Resources: map[string]string{"app-manifests": moduleAppManifest},
 	})
 
-	pm := platformMesh(env.EtcdEndpoint())
-	require.NoError(t, env.Config.Client.Create(t.Context(), pm))
+	pm := createPlatformMesh(t, env.Config.Client, env.EtcdEndpoint())
 
 	// The PlatformMesh must be up before a post-topology module deploys.
 	waitPlatformMeshReady(t, env, pm.Name)

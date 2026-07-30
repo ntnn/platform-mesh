@@ -18,7 +18,6 @@ package topology
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
@@ -77,14 +76,9 @@ func (s *Subroutine) reconcileVirtualWorkspace(ctx context.Context, pm *pmdeploy
 	}
 
 	var spec operatorv1alpha1.VirtualWorkspaceSpec
-	if vws.Template != nil {
-		data, err := json.Marshal(vws.Template)
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(data, &spec); err != nil {
-			return err
-		}
+	tpl := &pmdeployerv1alpha1.VirtualWorkspaceTemplate{}
+	if err := s.resolveTemplate(ctx, pm, vws.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+		return err
 	}
 
 	spec.Target = target

@@ -46,6 +46,16 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&ModuleList{},
 		&ModuleSetup{},
 		&ModuleSetupList{},
+		&RootShardTemplate{},
+		&RootShardTemplateList{},
+		&ShardTemplate{},
+		&ShardTemplateList{},
+		&FrontProxyTemplate{},
+		&FrontProxyTemplateList{},
+		&CacheServerTemplate{},
+		&CacheServerTemplateList{},
+		&VirtualWorkspaceTemplate{},
+		&VirtualWorkspaceTemplateList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

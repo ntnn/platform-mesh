@@ -18,6 +18,9 @@ package e2e
 
 import (
 	"strconv"
+	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/test/e2e/suite"
@@ -25,11 +28,24 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func platformMesh(etcdEndpoint string) *pmdeployerv1alpha1.PlatformMesh {
+// createPlatformMesh creates the installation under test along with the
+// topology templates it references.
+func createPlatformMesh(t *testing.T, c ctrlruntimeclient.Client, etcdEndpoint string) *pmdeployerv1alpha1.PlatformMesh {
+	t.Helper()
+	pm, templates := platformMesh(etcdEndpoint)
+	for _, tpl := range templates {
+		require.NoError(t, c.Create(t.Context(), tpl))
+	}
+	require.NoError(t, c.Create(t.Context(), pm))
+	return pm
+}
+
+func platformMesh(etcdEndpoint string) (*pmdeployerv1alpha1.PlatformMesh, []ctrlruntimeclient.Object) {
 	etcd := func(prefix string) *operatorv1alpha1.EtcdConfig {
 		return &operatorv1alpha1.EtcdConfig{
 			Endpoints: []string{strconv.Quote(etcdEndpoint)},
@@ -56,9 +72,29 @@ func platformMesh(etcdEndpoint string) *pmdeployerv1alpha1.PlatformMesh {
 		}
 	}
 
+	templates := []ctrlruntimeclient.Object{
+		&pmdeployerv1alpha1.RootShardTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "root", Namespace: suite.ProviderNamespace},
+			Spec: operatorv1alpha1.RootShardTemplateSpec{
+				CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
+					Etcd: etcd(`"/" + platformMesh + "/root"`),
+				},
+				Certificates: certs,
+			},
+		},
+		&pmdeployerv1alpha1.ShardTemplate{
+			ObjectMeta: metav1.ObjectMeta{Name: "default", Namespace: suite.ProviderNamespace},
+			Spec: operatorv1alpha1.ShardTemplateSpec{
+				CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
+					Etcd: etcd(`"/" + platformMesh + "/" + component + "/" + cluster`),
+				},
+			},
+		},
+	}
+
 	return &pmdeployerv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "customer-a",
+			Name:      suite.PlatformMeshName,
 			Namespace: suite.ProviderNamespace,
 		},
 		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
@@ -77,26 +113,17 @@ func platformMesh(etcdEndpoint string) *pmdeployerv1alpha1.PlatformMesh {
 			}},
 			Topology: pmdeployerv1alpha1.Topology{
 				RootShard: pmdeployerv1alpha1.RootShard{
-					Name: "root",
-					Template: &operatorv1alpha1.RootShardTemplateSpec{
-						CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
-							Etcd: etcd(`"/" + platformMesh + "/root"`),
-						},
-						Certificates: certs,
-					},
-					Exposure: host(`"root." + cluster + ".sslip.io"`),
+					Name:        "root",
+					TemplateRef: &pmdeployerv1alpha1.TemplateReference{Name: "root"},
+					Exposure:    host(`"root." + cluster + ".sslip.io"`),
 					VirtualWorkspaces: pmdeployerv1alpha1.VirtualWorkspaceSpec{
 						Exposure: host(`"vw-root." + cluster + ".sslip.io"`),
 					},
 				},
 				ShardGroups: []pmdeployerv1alpha1.ShardGroup{{
-					Name: "default",
-					Template: &operatorv1alpha1.ShardTemplateSpec{
-						CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
-							Etcd: etcd(`"/" + platformMesh + "/" + component + "/" + cluster`),
-						},
-					},
-					Exposure: ptr.To(host(`component + "." + cluster + ".sslip.io"`)),
+					Name:        "default",
+					TemplateRef: &pmdeployerv1alpha1.TemplateReference{Name: "default"},
+					Exposure:    ptr.To(host(`component + "." + cluster + ".sslip.io"`)),
 					VirtualWorkspaces: pmdeployerv1alpha1.VirtualWorkspaceSpec{
 						Exposure: host(`"vw." + component + "." + cluster + ".sslip.io"`),
 					},
@@ -107,5 +134,5 @@ func platformMesh(etcdEndpoint string) *pmdeployerv1alpha1.PlatformMesh {
 				},
 			},
 		},
-	}
+	}, templates
 }

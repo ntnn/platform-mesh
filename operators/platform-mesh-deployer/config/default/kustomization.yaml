@@ -3,13 +3,6 @@ kind: Kustomization
 
 # Everything the deployer itself needs on the config plane. cert-manager and
 # the config-mode kcp-operator are separate prerequisites; see config/bases.
-#
-# Apply with server-side apply:
-#
-#     kubectl apply --server-side -k config/default
-#
-# The PlatformMesh CRD is larger than the 262144 byte limit on the
-# last-applied-configuration annotation, so a client-side apply is rejected.
 namespace: platform-mesh-system
 namePrefix: platform-mesh-deployer-
 

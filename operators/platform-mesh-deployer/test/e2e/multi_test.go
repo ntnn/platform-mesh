@@ -40,8 +40,7 @@ func TestConfigWorkloadCluster(t *testing.T) {
 	env.EngageWorkload(t, "customer-a", workload, "rootshard", "frontproxy", "shards-default")
 	env.CopyEtcdClientCert(t, workload)
 
-	pm := platformMesh(env.EtcdEndpoint())
-	require.NoError(t, env.Config.Client.Create(t.Context(), pm))
+	createPlatformMesh(t, env.Config.Client, env.EtcdEndpoint())
 
 	rootName := names.RootShard(suite.PlatformMeshName, "root", workload.NodeIP)
 	rootShard := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: rootName}

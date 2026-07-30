@@ -41,7 +41,7 @@ func fuzzRoundTrip[T any](t *testing.T, data []byte, obj *T, obj2 *T) {
 }
 
 func FuzzPlatformMeshRoundTrip(f *testing.F) {
-	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"PlatformMesh","metadata":{"name":"pm"},"spec":{"version":"1.0.0","ocm":{"url":"ghcr.io/platform-mesh","component":"github.com/platform-mesh/platform-mesh"},"topology":{"rootShard":{"name":"root","template":{"replicas":2,"extraArgs":["--v=4"]},"virtualWorkspaces":{"mode":"Embedded","template":{"replicas":1},"exposure":{"hostnameTemplate":"vw.{{ .Cluster }}.example.com","port":443}}},"frontProxies":[{"name":"public","template":{"replicas":3},"exposure":{"hostnameTemplate":"kcp.example.com","port":443}}],"cacheServers":[{"name":"global","template":{"replicas":1}}]},"ingress":[{"name":"default","type":"gatewayapi"}]}}`))
+	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"PlatformMesh","metadata":{"name":"pm"},"spec":{"version":"1.0.0","ocm":{"url":"ghcr.io/platform-mesh","component":"github.com/platform-mesh/platform-mesh"},"topology":{"rootShard":{"name":"root","templateRef":{"name":"root"},"virtualWorkspaces":{"mode":"Embedded","templateRef":{"name":"vw","namespace":"shared"},"exposure":{"hostnameTemplate":"vw.{{ .Cluster }}.example.com","port":443}}},"frontProxy":{"name":"public","templateRef":{"name":"fp"},"exposure":{"hostnameTemplate":"kcp.example.com","port":443}},"cacheServer":{"name":"global","templateRef":{"name":"cache"}}},"ingress":[{"name":"default","type":"gatewayapi"}]}}`))
 	f.Add([]byte(`{"spec":{"version":"1.0.0","ocm":{"url":"ghcr.io/platform-mesh"},"topology":{"rootShard":{"name":"root","virtualWorkspaces":{"exposure":{"hostnameTemplate":"vw.example.com","port":6443}}}}}}`))
 	f.Add([]byte(`{}`))
 	f.Fuzz(func(t *testing.T, data []byte) {
@@ -64,5 +64,45 @@ func FuzzModuleSetupRoundTrip(f *testing.F) {
 	f.Add([]byte(`{}`))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		fuzzRoundTrip(t, data, &ModuleSetup{}, &ModuleSetup{})
+	})
+}
+
+func FuzzRootShardTemplateRoundTrip(f *testing.F) {
+	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"RootShardTemplate","metadata":{"name":"root"},"spec":{"replicas":2,"etcd":{"endpoints":["https://etcd:2379"],"prefix":"/pm"}}}`))
+	f.Add([]byte(`{}`))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		fuzzRoundTrip(t, data, &RootShardTemplate{}, &RootShardTemplate{})
+	})
+}
+
+func FuzzShardTemplateRoundTrip(f *testing.F) {
+	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"ShardTemplate","metadata":{"name":"default"},"spec":{"replicas":3,"etcd":{"endpoints":["https://etcd:2379"]}}}`))
+	f.Add([]byte(`{}`))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		fuzzRoundTrip(t, data, &ShardTemplate{}, &ShardTemplate{})
+	})
+}
+
+func FuzzFrontProxyTemplateRoundTrip(f *testing.F) {
+	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"FrontProxyTemplate","metadata":{"name":"fp"},"spec":{"replicas":3}}`))
+	f.Add([]byte(`{}`))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		fuzzRoundTrip(t, data, &FrontProxyTemplate{}, &FrontProxyTemplate{})
+	})
+}
+
+func FuzzCacheServerTemplateRoundTrip(f *testing.F) {
+	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"CacheServerTemplate","metadata":{"name":"global"},"spec":{"replicas":1,"etcd":{"endpoints":["https://etcd:2379"]}}}`))
+	f.Add([]byte(`{}`))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		fuzzRoundTrip(t, data, &CacheServerTemplate{}, &CacheServerTemplate{})
+	})
+}
+
+func FuzzVirtualWorkspaceTemplateRoundTrip(f *testing.F) {
+	f.Add([]byte(`{"apiVersion":"deployer.platform-mesh.io/v1alpha1","kind":"VirtualWorkspaceTemplate","metadata":{"name":"vw"},"spec":{"replicas":1}}`))
+	f.Add([]byte(`{}`))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		fuzzRoundTrip(t, data, &VirtualWorkspaceTemplate{}, &VirtualWorkspaceTemplate{})
 	})
 }

@@ -67,6 +67,8 @@ func TestFrontProxyMappingsSortedLongestFirst(t *testing.T) {
 	pm := platformMesh()
 	objs := []ctrlruntimeclient.Object{
 		pm,
+		rootShardTemplate(),
+		shardTemplate(),
 		moduleWithMapping("acme", "vw", "/services/acme/"),
 		moduleWithMapping("other", "vw", "/services/other/deeper/"),
 	}
@@ -95,6 +97,8 @@ func TestFrontProxyRejectsConflictingMappings(t *testing.T) {
 	pm := platformMesh()
 	objs := []ctrlruntimeclient.Object{
 		pm,
+		rootShardTemplate(),
+		shardTemplate(),
 		moduleWithMapping("acme", "vw", "/services/shared/"),
 		moduleWithMapping("other", "vw", "/services/shared/"),
 	}
@@ -111,7 +115,7 @@ func TestFrontProxyRejectsConflictingMappings(t *testing.T) {
 // A PlatformMesh without modules gets no additional mappings.
 func TestFrontProxyWithoutModules(t *testing.T) {
 	pm := platformMesh()
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")

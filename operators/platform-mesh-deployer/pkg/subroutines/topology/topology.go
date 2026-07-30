@@ -19,6 +19,7 @@ package topology
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
@@ -71,6 +72,28 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 		return subroutines.Result{}, err
 	}
 	return subroutines.OK(), nil
+}
+
+// resolveTemplate converts the referenced template CR's spec into out.
+// A nil ref leaves out at its zero value.
+func (s *Subroutine) resolveTemplate(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, ref *pmdeployerv1alpha1.TemplateReference, tpl ctrlruntimeclient.Object, spec func() any, out any) error {
+	if ref == nil {
+		return nil
+	}
+	namespace := ref.Namespace
+	if namespace == "" {
+		namespace = pm.Namespace
+	}
+	key := ctrlruntimeclient.ObjectKey{Namespace: namespace, Name: ref.Name}
+	if err := s.client.Get(ctx, key, tpl); err != nil {
+		return fmt.Errorf("template %s: %w", key, err)
+	}
+	// The template spec mirrors the target spec with every field optional.
+	data, err := json.Marshal(spec())
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(data, out)
 }
 
 // resolveEtcd expands the CEL expressions in the owned etcd endpoints and prefix.

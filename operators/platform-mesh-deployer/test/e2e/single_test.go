@@ -37,8 +37,7 @@ func TestSingleCluster(t *testing.T) {
 	env := suite.Start(t, 0)
 	env.EngageWorkload(t, "customer-a", env.Config, "rootshard", "frontproxy", "shards-default")
 
-	pm := platformMesh(env.EtcdEndpoint())
-	require.NoError(t, env.Config.Client.Create(t.Context(), pm))
+	createPlatformMesh(t, env.Config.Client, env.EtcdEndpoint())
 
 	rootName := names.RootShard(suite.PlatformMeshName, "root", env.Config.NodeIP)
 	rootShard := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: rootName}

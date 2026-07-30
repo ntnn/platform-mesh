@@ -55,15 +55,8 @@ func platformMesh() *pmdeployerv1alpha1.PlatformMesh {
 		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
 			Topology: pmdeployerv1alpha1.Topology{
 				RootShard: pmdeployerv1alpha1.RootShard{
-					Name: "root",
-					Template: &operatorv1alpha1.RootShardTemplateSpec{
-						CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
-							Etcd: &operatorv1alpha1.EtcdConfig{
-								Endpoints: []string{`"https://etcd-" + platformMesh + ".pm:2379"`},
-								Prefix:    `"/" + platformMesh + "/" + cluster`,
-							},
-						},
-					},
+					Name:        "root",
+					TemplateRef: &pmdeployerv1alpha1.TemplateReference{Name: "root"},
 					Exposure: pmdeployerv1alpha1.Exposure{
 						HostnameTemplate: `"kcp." + platformMesh + ".example.com"`,
 						Port:             6443,
@@ -81,6 +74,34 @@ func platformMesh() *pmdeployerv1alpha1.PlatformMesh {
 	}
 }
 
+func rootShardTemplate() *pmdeployerv1alpha1.RootShardTemplate {
+	return &pmdeployerv1alpha1.RootShardTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "root", Namespace: "pm"},
+		Spec: operatorv1alpha1.RootShardTemplateSpec{
+			CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
+				Etcd: &operatorv1alpha1.EtcdConfig{
+					Endpoints: []string{`"https://etcd-" + platformMesh + ".pm:2379"`},
+					Prefix:    `"/" + platformMesh + "/" + cluster`,
+				},
+			},
+		},
+	}
+}
+
+func shardTemplate() *pmdeployerv1alpha1.ShardTemplate {
+	return &pmdeployerv1alpha1.ShardTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "eu", Namespace: "pm"},
+		Spec: operatorv1alpha1.ShardTemplateSpec{
+			CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
+				Etcd: &operatorv1alpha1.EtcdConfig{
+					Endpoints: []string{`"https://etcd-" + platformMesh + ".pm:2379"`},
+					Prefix:    `"/" + platformMesh + "/" + shardGroup + "/" + cluster`,
+				},
+			},
+		},
+	}
+}
+
 func engage(t *testing.T, r *clusters.Registry, name string) {
 	t.Helper()
 	require.NoError(t, r.Engage(context.Background(), multicluster.ClusterName(name), nil))
@@ -88,7 +109,7 @@ func engage(t *testing.T, r *clusters.Registry, name string) {
 
 func TestReconcileRootShard(t *testing.T) {
 	pm := platformMesh()
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
@@ -114,7 +135,7 @@ func TestReconcileRootShard(t *testing.T) {
 
 func TestReconcileRootShardRejectsSecondCluster(t *testing.T) {
 	pm := platformMesh()
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "rootshard#customer-a--west")
@@ -137,7 +158,7 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 			},
 		},
 	}
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, stale).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, stale, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
@@ -154,15 +175,8 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 func TestReconcileShard(t *testing.T) {
 	pm := platformMesh()
 	pm.Spec.Topology.ShardGroups = []pmdeployerv1alpha1.ShardGroup{{
-		Name: "eu",
-		Template: &operatorv1alpha1.ShardTemplateSpec{
-			CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
-				Etcd: &operatorv1alpha1.EtcdConfig{
-					Endpoints: []string{`"https://etcd-" + platformMesh + ".pm:2379"`},
-					Prefix:    `"/" + platformMesh + "/" + shardGroup + "/" + cluster`,
-				},
-			},
-		},
+		Name:           "eu",
+		TemplateRef:    &pmdeployerv1alpha1.TemplateReference{Name: "eu"},
 		CacheServerRef: "cache",
 		Exposure: &pmdeployerv1alpha1.Exposure{
 			HostnameTemplate: `component + "." + cluster + ".sslip.io"`,
@@ -170,7 +184,7 @@ func TestReconcileShard(t *testing.T) {
 		},
 	}}
 	pm.Spec.Topology.CacheServer = &pmdeployerv1alpha1.CacheServer{Name: "cache"}
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
@@ -204,7 +218,7 @@ func TestReconcileFrontProxy(t *testing.T) {
 			Port:             443,
 		},
 	}
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--west")
@@ -226,15 +240,19 @@ func TestReconcileFrontProxy(t *testing.T) {
 func TestReconcileCacheServer(t *testing.T) {
 	pm := platformMesh()
 	pm.Spec.Topology.CacheServer = &pmdeployerv1alpha1.CacheServer{
-		Name: "global",
-		Template: &operatorv1alpha1.CacheServerTemplateSpec{
+		Name:        "global",
+		TemplateRef: &pmdeployerv1alpha1.TemplateReference{Name: "global"},
+	}
+	cacheTemplate := &pmdeployerv1alpha1.CacheServerTemplate{
+		ObjectMeta: metav1.ObjectMeta{Name: "global", Namespace: "pm"},
+		Spec: operatorv1alpha1.CacheServerTemplateSpec{
 			Etcd: &operatorv1alpha1.EtcdConfig{
 				Endpoints: []string{`"https://cache-etcd-" + platformMesh + ".pm:2379"`},
 				Prefix:    `"/" + platformMesh + "/cache"`,
 			},
 		},
 	}
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate(), cacheTemplate).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
@@ -262,7 +280,7 @@ func TestReconcileVirtualWorkspace(t *testing.T) {
 			Port:             443,
 		},
 	}
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
@@ -283,7 +301,7 @@ func TestReconcileVirtualWorkspace(t *testing.T) {
 
 func TestReconcileVirtualWorkspaceEmbeddedSkipped(t *testing.T) {
 	pm := platformMesh() // root shard VirtualWorkspaces defaults to embedded (mode unset)
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
@@ -302,7 +320,7 @@ func TestReconcileNamesAreUniquePerPlatformMesh(t *testing.T) {
 	b := platformMesh()
 	b.Name = "customer-b"
 
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(a, b).Build()
+	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(a, b, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	for _, pm := range []string{"customer-a", "customer-b"} {
 		engage(t, reg, multiclusterName("rootshard", pm, "east"))
@@ -377,7 +395,7 @@ func TestReconcileCacheServerRef(t *testing.T) {
 			pm.Spec.Topology.ShardGroups = shardGroup(tc.ref)
 			pm.Spec.Topology.CacheServer = tc.cacheServer
 
-			cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+			cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 			reg := clusters.NewRegistry()
 			engage(t, reg, "rootshard#customer-a--east")
 			engage(t, reg, "frontproxy#customer-a--fp")
@@ -390,4 +408,74 @@ func TestReconcileCacheServerRef(t *testing.T) {
 			require.ErrorContains(t, err, tc.wantErr)
 		})
 	}
+}
+
+func TestReconcileTemplateRef(t *testing.T) {
+	t.Run("nil ref renders a zero spec", func(t *testing.T) {
+		pm := platformMesh()
+		pm.Spec.Topology.RootShard.TemplateRef = nil
+
+		cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+		reg := clusters.NewRegistry()
+		engage(t, reg, "rootshard#customer-a--east")
+		engage(t, reg, "frontproxy#customer-a--fp")
+
+		_, err := topology.New(cl, reg).Process(t.Context(), pm)
+		require.NoError(t, err)
+
+		rs := &operatorv1alpha1.RootShard{}
+		require.NoError(t, cl.Get(t.Context(),
+			ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.RootShard("customer-a", "root", "east")}, rs))
+		assert.Nil(t, rs.Spec.Etcd.Endpoints)
+	})
+
+	t.Run("dangling ref errors", func(t *testing.T) {
+		pm := platformMesh()
+		pm.Spec.Topology.RootShard.TemplateRef = &pmdeployerv1alpha1.TemplateReference{Name: "gone"}
+
+		cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm).Build()
+		reg := clusters.NewRegistry()
+		engage(t, reg, "rootshard#customer-a--east")
+		engage(t, reg, "frontproxy#customer-a--fp")
+
+		_, err := topology.New(cl, reg).Process(t.Context(), pm)
+		require.ErrorContains(t, err, "template pm/gone")
+	})
+
+	t.Run("shared across namespaces", func(t *testing.T) {
+		shared := rootShardTemplate()
+		shared.Namespace = "shared"
+
+		a := platformMesh()
+		a.Spec.Topology.RootShard.TemplateRef = &pmdeployerv1alpha1.TemplateReference{Name: "root", Namespace: "shared"}
+		b := platformMesh()
+		b.Name, b.Namespace = "customer-b", "pm-b"
+		b.Spec.Topology.RootShard.TemplateRef = &pmdeployerv1alpha1.TemplateReference{Name: "root", Namespace: "shared"}
+
+		cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(a, b, shared).Build()
+		reg := clusters.NewRegistry()
+		for _, pm := range []string{"customer-a", "customer-b"} {
+			engage(t, reg, multiclusterName("rootshard", pm, "east"))
+			engage(t, reg, multiclusterName("frontproxy", pm, "east"))
+		}
+
+		sub := topology.New(cl, reg)
+		for _, pm := range []*pmdeployerv1alpha1.PlatformMesh{a, b} {
+			_, err := sub.Process(t.Context(), pm)
+			require.NoError(t, err)
+		}
+
+		// Both installations picked up the shared template, each with its own
+		// CEL context.
+		for _, tc := range []struct{ pm, namespace, prefix string }{
+			{"customer-a", "pm", "/customer-a/east"},
+			{"customer-b", "pm-b", "/customer-b/east"},
+		} {
+			rs := &operatorv1alpha1.RootShard{}
+			require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{
+				Namespace: tc.namespace, Name: names.RootShard(tc.pm, "root", "east"),
+			}, rs))
+			assert.Equal(t, tc.prefix, rs.Spec.Etcd.Prefix)
+		}
+	})
 }

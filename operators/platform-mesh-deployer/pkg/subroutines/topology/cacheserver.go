@@ -18,7 +18,6 @@ package topology
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
@@ -39,7 +38,7 @@ func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployerv1a
 		engaged := s.registry.ClustersFor(pm.Name, components.CacheServer)
 		for _, cl := range engaged {
 			name := names.CacheServer(pm.Name, cacheServer.Name, cl.ClusterID)
-			spec, err := s.buildCacheServerSpec(pm, *cacheServer, cl.ClusterID)
+			spec, err := s.buildCacheServerSpec(ctx, pm, *cacheServer, cl.ClusterID)
 			if err != nil {
 				return err
 			}
@@ -74,7 +73,7 @@ func (s *Subroutine) cacheServerRef(pm *pmdeployerv1alpha1.PlatformMesh, ref str
 	return names.CacheServer(pm.Name, cacheServer.Name, engaged[0].ClusterID), nil
 }
 
-func (s *Subroutine) buildCacheServerSpec(pm *pmdeployerv1alpha1.PlatformMesh, cacheServer pmdeployerv1alpha1.CacheServer, clusterID string) (operatorv1alpha1.CacheServerSpec, error) {
+func (s *Subroutine) buildCacheServerSpec(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, cacheServer pmdeployerv1alpha1.CacheServer, clusterID string) (operatorv1alpha1.CacheServerSpec, error) {
 	name := names.CacheServer(pm.Name, cacheServer.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -83,14 +82,9 @@ func (s *Subroutine) buildCacheServerSpec(pm *pmdeployerv1alpha1.PlatformMesh, c
 	}
 
 	var spec operatorv1alpha1.CacheServerSpec
-	if cacheServer.Template != nil {
-		data, err := json.Marshal(cacheServer.Template)
-		if err != nil {
-			return spec, err
-		}
-		if err := json.Unmarshal(data, &spec); err != nil {
-			return spec, err
-		}
+	tpl := &pmdeployerv1alpha1.CacheServerTemplate{}
+	if err := s.resolveTemplate(ctx, pm, cacheServer.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+		return spec, err
 	}
 
 	if spec.Etcd != nil {

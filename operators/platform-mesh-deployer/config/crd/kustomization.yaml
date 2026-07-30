@@ -5,3 +5,8 @@ resources:
   - deployer.platform-mesh.io_modules.yaml
   - deployer.platform-mesh.io_modulesetups.yaml
   - deployer.platform-mesh.io_platformmeshes.yaml
+  - deployer.platform-mesh.io_rootshardtemplates.yaml
+  - deployer.platform-mesh.io_shardtemplates.yaml
+  - deployer.platform-mesh.io_frontproxytemplates.yaml
+  - deployer.platform-mesh.io_cacheservertemplates.yaml
+  - deployer.platform-mesh.io_virtualworkspacetemplates.yaml

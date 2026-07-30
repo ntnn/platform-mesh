@@ -18,7 +18,6 @@ package topology
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -50,7 +49,7 @@ func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployerv1al
 	desired := map[string]struct{}{}
 	for _, cl := range engaged {
 		name := names.FrontProxy(pm.Name, frontProxy.Name, cl.ClusterID)
-		spec, err := s.buildFrontProxySpec(pm, frontProxy, cl.ClusterID, rootRef)
+		spec, err := s.buildFrontProxySpec(ctx, pm, frontProxy, cl.ClusterID, rootRef)
 		if err != nil {
 			return err
 		}
@@ -67,7 +66,7 @@ func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployerv1al
 	return s.teardown(ctx, pm, components.FrontProxy, &operatorv1alpha1.FrontProxyList{}, desired)
 }
 
-func (s *Subroutine) buildFrontProxySpec(pm *pmdeployerv1alpha1.PlatformMesh, frontProxy pmdeployerv1alpha1.FrontProxy, clusterID, rootRef string) (operatorv1alpha1.FrontProxySpec, error) {
+func (s *Subroutine) buildFrontProxySpec(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, frontProxy pmdeployerv1alpha1.FrontProxy, clusterID, rootRef string) (operatorv1alpha1.FrontProxySpec, error) {
 	name := names.FrontProxy(pm.Name, frontProxy.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -76,14 +75,9 @@ func (s *Subroutine) buildFrontProxySpec(pm *pmdeployerv1alpha1.PlatformMesh, fr
 	}
 
 	var spec operatorv1alpha1.FrontProxySpec
-	if frontProxy.Template != nil {
-		data, err := json.Marshal(frontProxy.Template)
-		if err != nil {
-			return spec, err
-		}
-		if err := json.Unmarshal(data, &spec); err != nil {
-			return spec, err
-		}
+	tpl := &pmdeployerv1alpha1.FrontProxyTemplate{}
+	if err := s.resolveTemplate(ctx, pm, frontProxy.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+		return spec, err
 	}
 
 	spec.RootShard.Reference = &corev1.LocalObjectReference{Name: rootRef}

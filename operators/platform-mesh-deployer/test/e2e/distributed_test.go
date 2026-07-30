@@ -45,8 +45,7 @@ func TestDistributedClusters(t *testing.T) {
 	env.CopyEtcdClientCert(t, sh2)
 	env.CopyEtcdClientCert(t, fp)
 
-	pm := platformMesh(env.EtcdEndpoint())
-	require.NoError(t, env.Config.Client.Create(t.Context(), pm))
+	createPlatformMesh(t, env.Config.Client, env.EtcdEndpoint())
 
 	cases := []struct {
 		kind    string
