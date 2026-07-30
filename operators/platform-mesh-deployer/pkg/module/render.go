@@ -34,11 +34,12 @@ import (
 // Render downloads an instance's payload resource, interpolates it and returns
 // the objects to apply, with the generated ConfigMap first so a component can
 // rely on it existing.
-func (r *Resolved) Render(ctx context.Context, inst Instance) ([]*unstructured.Unstructured, error) {
+func (r *Resolved) Render(ctx context.Context, inst Instance, endpoints map[string]string) ([]*unstructured.Unstructured, error) {
 	celCtx, err := r.Context(inst)
 	if err != nil {
 		return nil, err
 	}
+	celCtx.Endpoints = endpoints
 
 	res, err := Resource(r.CV, inst.Component.Resource)
 	if err != nil {

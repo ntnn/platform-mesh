@@ -43,6 +43,8 @@ type state struct {
 	resolved     *module.Resolved
 	platformMesh *pmdeployerv1alpha1.PlatformMesh
 	instances    []module.Instance
+	// endpoints are published by the provisioner once the kcp side is done.
+	endpoints map[string]string
 }
 
 const Name = "ModuleSubroutine"
@@ -103,6 +105,15 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 	}
 
 	st := &state{resolved: resolved, platformMesh: pm, instances: instances}
+
+	if err := s.ensureSetup(ctx, st); err != nil {
+		if errors.Is(err, errSetupPending) {
+			setCondition(mod, ConditionDeployed, metav1.ConditionFalse, "WaitingForSetup", err.Error())
+			return subroutines.StopWithRequeue(requeueWait, err.Error()), nil
+		}
+		return subroutines.Result{}, err
+	}
+
 	if err := s.deploy(ctx, st); err != nil {
 		// kcp-operator mints kubeconfigs asynchronously; waiting for one
 		// is ordinary progress, not a failure.

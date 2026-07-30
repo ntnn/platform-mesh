@@ -131,7 +131,7 @@ func TestRender(t *testing.T) {
 		map[string]string{"agent-manifests": deploymentManifest},
 		"shards-default#customer-a--s1")
 
-	objs, err := resolved.Render(t.Context(), inst)
+	objs, err := resolved.Render(t.Context(), inst, nil)
 	require.NoError(t, err)
 	require.Len(t, objs, 2, "generated ConfigMap plus the Deployment")
 
@@ -195,7 +195,7 @@ metadata:
 		map[string]string{"agent-manifests": manifest},
 		"shards-default#customer-a--s1")
 
-	objs, err := resolved.Render(t.Context(), inst)
+	objs, err := resolved.Render(t.Context(), inst, nil)
 	require.NoError(t, err)
 	require.Len(t, objs, 3, "ConfigMap plus both documents, empty document skipped")
 	assert.Equal(t, "acme-sa", objs[1].GetName())
@@ -215,7 +215,7 @@ metadata:
 		map[string]string{"agent-manifests": manifest},
 		"shards-default#customer-a--s1")
 
-	objs, err := resolved.Render(t.Context(), inst)
+	objs, err := resolved.Render(t.Context(), inst, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "kube-system", objs[1].GetNamespace())
 }
@@ -236,7 +236,7 @@ func TestRenderErrors(t *testing.T) {
 				map[string]string{"agent-manifests": tt.manifest},
 				"shards-default#customer-a--s1")
 
-			_, err := resolved.Render(t.Context(), inst)
+			_, err := resolved.Render(t.Context(), inst, nil)
 			require.Error(t, err)
 		})
 	}

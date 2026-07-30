@@ -55,6 +55,7 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 		if err != nil {
 			return err
 		}
+		celCtx.Endpoints = st.endpoints
 
 		// A mapped component is fronted by the front proxy, which needs a
 		// certificate it trusts before the topology can route to it.
@@ -69,7 +70,7 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 			}
 		}
 
-		objs, err := st.resolved.Render(ctx, inst)
+		objs, err := st.resolved.Render(ctx, inst, st.endpoints)
 		if err != nil {
 			return err
 		}
