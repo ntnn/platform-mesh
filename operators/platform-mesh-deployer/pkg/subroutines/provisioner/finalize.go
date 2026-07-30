@@ -67,7 +67,7 @@ func (s *Subroutine) Finalize(ctx context.Context, obj ctrlruntimeclient.Object)
 	}
 
 	for _, path := range deepestFirst(setup.Spec.Workspaces) {
-		if err := kcp.DeleteWorkspace(ctx, s.access, cfg, path); err != nil {
+		if err := s.access.DeletePath(ctx, cfg, path); err != nil {
 			if errors.Is(err, kcp.ErrWorkspacePending) {
 				return subroutines.StopWithRequeue(requeueWait, err.Error()), nil
 			}

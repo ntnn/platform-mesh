@@ -89,34 +89,38 @@ func (a *Access) EnsurePath(ctx context.Context, base *rest.Config, path string)
 	return client, nil
 }
 
-// DeleteWorkspace removes a workspace by absolute path. It reports
-// ErrWorkspacePending while the workspace is still terminating, and treats a
-// missing parent or workspace as already done.
-func DeleteWorkspace(ctx context.Context, a *Access, base *rest.Config, path string) error {
+// DeletePath removes the workspace at an absolute path, resolving its parent
+// to delete it from.
+func (a *Access) DeletePath(ctx context.Context, base *rest.Config, path string) error {
 	parent, name, ok := splitPath(path)
 	if !ok {
 		return fmt.Errorf("workspace path %q has no parent", path)
 	}
-
 	client, err := a.ClientFor(base, parent)
 	if err != nil {
 		return err
 	}
+	return DeleteWorkspace(ctx, client, name)
+}
 
+// DeleteWorkspace removes a workspace below parent. It reports
+// ErrWorkspacePending while the workspace is still terminating, and treats a
+// missing workspace as already done.
+func DeleteWorkspace(ctx context.Context, parent ctrlruntimeclient.Client, name string) error {
 	ws := &tenancyv1alpha1.Workspace{}
-	if err := client.Get(ctx, ctrlruntimeclient.ObjectKey{Name: name}, ws); err != nil {
+	if err := parent.Get(ctx, ctrlruntimeclient.ObjectKey{Name: name}, ws); err != nil {
 		if apierrors.IsNotFound(err) || apierrors.IsForbidden(err) {
 			return nil
 		}
-		return fmt.Errorf("reading workspace %q: %w", path, err)
+		return fmt.Errorf("reading workspace %q: %w", name, err)
 	}
 
 	if ws.DeletionTimestamp == nil {
-		if err := client.Delete(ctx, ws); err != nil && !apierrors.IsNotFound(err) {
-			return fmt.Errorf("deleting workspace %q: %w", path, err)
+		if err := parent.Delete(ctx, ws); err != nil && !apierrors.IsNotFound(err) {
+			return fmt.Errorf("deleting workspace %q: %w", name, err)
 		}
 	}
-	return fmt.Errorf("%w: %s is terminating", ErrWorkspacePending, path)
+	return fmt.Errorf("%w: %s is terminating", ErrWorkspacePending, name)
 }
 
 // splitPath splits an absolute workspace path into its parent and leaf.
