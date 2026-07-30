@@ -16,58 +16,101 @@ limitations under the License.
 
 // Package names builds the kcp-operator admin CR names the deployer creates.
 //
-// kcp-operator derives Deployment, Service, Certificate and X.509 CommonName
-// values from the admin CR name, so every name has a budget far below the 253
-// byte limit on object names. The budgets are the Max* constants below.
+// kcp-operator derives Deployment, Service and Certificate names, X.509
+// CommonNames and certificate revision annotation keys from the admin CR name.
+// The annotation keys bind hardest: kcp-operator stamps
+// "operator.kcp.io/cert-<certificate>-revision" onto the Compiled* CRs, and a
+// label/annotation name part may not exceed 63 bytes. With the longest
+// certificate kind being "external-logical-cluster-admin", a Shard or RootShard
+// name has 18 bytes. Names are therefore a truncated stub plus a hash rather
+// than anything fully readable.
 package names
 
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 )
 
-// Name budgets, each set by the tightest value kcp-operator derives from the
-// admin CR name. Pinned by TestBudgets.
+// Name budgets, each the tightest value kcp-operator derives from the admin CR
+// name. Pinned by TestBudgets.
 const (
-	// MaxRootShard is bounded by the "<name>-service-account" CommonName.
-	MaxRootShard = 48
-	// MaxShard is bounded by the "external-logical-cluster-admin-shard-<name>"
-	// CommonName, the tightest budget of them all.
-	MaxShard = 27
-	// MaxFrontProxy is bounded by the "<name>-front-proxy" Service.
-	MaxFrontProxy = 51
-	// MaxCacheServer is bounded by the "<name>-cache-server" Service.
-	MaxCacheServer = 50
-	// MaxVirtualWorkspace is bounded by the "<name>-virtual-workspace" Service.
-	MaxVirtualWorkspace = 45
+	// MaxRootShard is bounded by the cert-<name>-external-logical-cluster-admin-revision
+	// annotation key.
+	MaxRootShard = 18
+	// MaxShard is bounded by the same annotation key as MaxRootShard.
+	MaxShard = 18
+	// MaxFrontProxy is bounded by MaxRootShardFrontProxy, since a front proxy
+	// certificate is named after both the root shard and the front proxy.
+	MaxFrontProxy = 16
+	// MaxCacheServer is bounded by the cert-<name>-client-certificate-revision
+	// annotation key.
+	MaxCacheServer = 30
+	// MaxVirtualWorkspace is bounded by the cert-<name>-client-revision
+	// annotation key.
+	MaxVirtualWorkspace = 42
+
+	// MaxRootShardFrontProxy bounds a root shard and a front proxy name
+	// together, from the cert-<rootShard>-<frontProxy>-requestheader-revision
+	// annotation key.
+	MaxRootShardFrontProxy = 34
 )
 
-const (
-	// clusterHashLen keeps the cluster segment fixed width so a name's budget
-	// does not depend on a provider-controlled cluster ID.
-	clusterHashLen = 6
-	// overflowHashLen restores uniqueness to a name that had to be truncated.
-	overflowHashLen = 8
-)
+// hashLen is the fixed-width identity hash every name carries. It covers the
+// untruncated identity, so names that had to be shortened stay distinct.
+const hashLen = 6
 
-// Scoped returns the admin CR name for a component of platformMesh on the
-// given cluster, bounded to budget bytes.
+// Scoped returns the admin CR name for a component of platformMesh on the given
+// cluster, of at most budget bytes.
 //
-// The cluster ID is hashed because it is provider-controlled and unbounded,
-// while platformMesh and component stay readable. Names over budget are truncated
-// and suffixed with a hash of the full name so distinct inputs stay distinct.
-// The LabelCluster label on every admin CR maps a name back to its cluster.
+// The name is a readable stub of platformMesh and component followed by a hash
+// of the full identity. Budgets are far too small to spell the identity out;
+// the LabelPlatformMesh, LabelComponent and LabelCluster labels on every admin
+// CR carry it unabbreviated.
 func Scoped(budget int, platformMesh, component, clusterID string) string {
-	name := platformMesh + "-" + component + "-" + hash(clusterID, clusterHashLen)
-	if len(name) <= budget {
-		return name
+	sum := hash(platformMesh + "\x00" + component + "\x00" + clusterID)
+	stub := stub(platformMesh, component, budget-hashLen-1)
+	if stub == "" {
+		return sum
 	}
-	return name[:budget-overflowHashLen-1] + "-" + hash(name, overflowHashLen)
+	return stub + "-" + sum
 }
 
-func hash(s string, n int) string {
+// stub renders platformMesh and component into at most budget bytes, splitting
+// the room evenly and passing on whatever either does not need.
+func stub(platformMesh, component string, budget int) string {
+	if budget < 3 {
+		return ""
+	}
+	share := (budget - 1) / 2
+	pmLen, componentLen := share, budget-1-share
+	if len(platformMesh) < pmLen {
+		componentLen += pmLen - len(platformMesh)
+		pmLen = len(platformMesh)
+	}
+	if len(component) < componentLen {
+		pmLen += componentLen - len(component)
+		componentLen = len(component)
+	}
+	pm, c := truncate(platformMesh, pmLen), truncate(component, componentLen)
+	if pm == "" || c == "" {
+		return truncate(pm+c, budget)
+	}
+	return pm + "-" + c
+}
+
+// truncate cuts s to n bytes without leaving a separator at the edge, which
+// would make the name an invalid DNS label.
+func truncate(s string, n int) string {
+	if len(s) > n {
+		s = s[:n]
+	}
+	return strings.Trim(s, "-.")
+}
+
+func hash(s string) string {
 	sum := sha256.Sum256([]byte(s))
-	return hex.EncodeToString(sum[:])[:n]
+	return hex.EncodeToString(sum[:])[:hashLen]
 }
 
 // RootShard names the RootShard admin CR of a root shard group.

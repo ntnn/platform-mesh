@@ -28,11 +28,26 @@ import (
 
 // Limits kcp-operator's derived names are subject to.
 const (
+	// annotationNameMax is the limit on a label or annotation name part.
+	// kcp-operator stamps "operator.kcp.io/cert-<certificate>-revision" onto
+	// the Compiled* CRs, which is what binds most admin CR names.
+	annotationNameMax = 63
 	// commonNameMax is the RFC 5280 ub-common-name upper bound cert-manager enforces.
 	commonNameMax = 64
 	// dnsLabelMax is the DNS-1035 label limit on Service names.
 	dnsLabelMax = 63
 )
+
+type derivation struct {
+	format string
+	limit  int
+}
+
+// revisionAnnotation is the annotation key kcp-operator derives from a
+// certificate name; see internal/controller/{rootshard,shard,frontproxy}/controller.go.
+func revisionAnnotation(certificate string) derivation {
+	return derivation{"cert-" + certificate + "-revision", annotationNameMax}
+}
 
 // TestBudgets pins every Max* to the tightest name kcp-operator derives from
 // it. The derivations are duplicated from kcp-operator's internal/resources,
@@ -43,91 +58,68 @@ func TestBudgets(t *testing.T) {
 	for _, tc := range []struct {
 		kind    string
 		budget  int
-		derived []struct {
-			format string
-			limit  int
-		}
+		derived []derivation
 	}{
 		{
 			kind:   "RootShard",
 			budget: names.MaxRootShard,
-			derived: []struct {
-				format string
-				limit  int
-			}{
-				// rootshard/certificates.go: CommonName = GetRootShardCertificateName(r, "service-account")
+			derived: []derivation{
+				revisionAnnotation("%s-external-logical-cluster-admin"),
+				revisionAnnotation("%s-logical-cluster-admin"),
+				revisionAnnotation("%s-virtual-workspaces"),
+				revisionAnnotation("%s-service-account"),
 				{"%s-service-account", commonNameMax},
-				// rootshard/certificates.go: CommonName = rootShard.Name
-				{"%s", commonNameMax},
-				// resources.go: GetRootShardServiceName
 				{"%s-kcp", dnsLabelMax},
-				// resources.go: GetRootShardProxyServiceName
 				{"%s-proxy", dnsLabelMax},
 			},
 		},
 		{
 			kind:   "Shard",
 			budget: names.MaxShard,
-			derived: []struct {
-				format string
-				limit  int
-			}{
-				// shard/certificates.go: CommonName = "external-logical-cluster-admin-shard-<name>"
+			derived: []derivation{
+				revisionAnnotation("%s-external-logical-cluster-admin"),
+				revisionAnnotation("%s-logical-cluster-admin"),
 				{"external-logical-cluster-admin-shard-%s", commonNameMax},
-				// shard/certificates.go: CommonName = "logical-cluster-admin-shard-<name>"
-				{"logical-cluster-admin-shard-%s", commonNameMax},
-				// shard/certificates.go: CommonName = "shard-<name>"
-				{"shard-%s", commonNameMax},
-				// shard/certificates.go: CommonName = GetShardCertificateName(s, certKind)
-				{"%s-external-logical-cluster-admin", commonNameMax},
-				// resources.go: GetShardServiceName
 				{"%s-shard-kcp", dnsLabelMax},
 			},
 		},
 		{
 			kind:   "FrontProxy",
 			budget: names.MaxFrontProxy,
-			derived: []struct {
-				format string
-				limit  int
-			}{
-				// resources.go: GetFrontProxyServiceName
+			derived: []derivation{
+				// A front proxy certificate is named after the root shard too,
+				// so the budget only holds beside a root shard at its own.
+				revisionAnnotation(strings.Repeat("x", names.MaxRootShard) + "-%s-requestheader"),
+				revisionAnnotation(strings.Repeat("x", names.MaxRootShard) + "-%s-kubeconfig"),
 				{"%s-front-proxy", dnsLabelMax},
 			},
 		},
 		{
 			kind:   "CacheServer",
 			budget: names.MaxCacheServer,
-			derived: []struct {
-				format string
-				limit  int
-			}{
-				// cacheserver/certificates.go: CommonName = GetCacheServerCAName(name, RootCA)
+			derived: []derivation{
+				revisionAnnotation("%s-client-certificate"),
+				revisionAnnotation("%s-server"),
 				{"%s-ca", commonNameMax},
-				// resources.go: GetCacheServerServiceName
 				{"%s-cache-server", dnsLabelMax},
 			},
 		},
 		{
 			kind:   "VirtualWorkspace",
 			budget: names.MaxVirtualWorkspace,
-			derived: []struct {
-				format string
-				limit  int
-			}{
-				// virtualworkspace/certificate.go: CommonName = "<name>-virtual-workspace"
+			derived: []derivation{
+				revisionAnnotation("%s-client"),
+				revisionAnnotation("%s-server"),
 				{"%s-virtual-workspace", commonNameMax},
-				// resources.go: GetVirtualWorkspaceBaseHost, the Service name
 				{"%s-virtual-workspace", dnsLabelMax},
 			},
 		},
 	} {
 		t.Run(tc.kind, func(t *testing.T) {
 			t.Parallel()
-			name := strings.Repeat("x", tc.budget)
+			at := strings.Repeat("x", tc.budget)
 			for _, d := range tc.derived {
-				derived := strings.Replace(d.format, "%s", name, 1)
-				assert.LessOrEqualf(t, len(derived), d.limit,
+				assert.LessOrEqualf(t, len(strings.Replace(d.format, "%s", at, 1)), d.limit,
 					"%s budget %d exceeds the %d byte limit on %q", tc.kind, tc.budget, d.limit, d.format)
 			}
 			// The budget must be the tightest one, not merely a safe one.
@@ -143,33 +135,65 @@ func TestBudgets(t *testing.T) {
 	}
 }
 
+// TestRootShardFrontProxyBudget covers the one derivation naming two admin CRs
+// at once, which no per-kind budget can express.
+func TestRootShardFrontProxyBudget(t *testing.T) {
+	t.Parallel()
+
+	// resources.go GetFrontProxyCertificateName: "<rootShard>-<frontProxy>-<certKind>",
+	// longest front proxy certKind being "requestheader".
+	key := func(rootShard, frontProxy int) string {
+		return "cert-" + strings.Repeat("x", rootShard) + "-" + strings.Repeat("x", frontProxy) + "-requestheader-revision"
+	}
+	at := names.MaxRootShardFrontProxy
+	assert.LessOrEqual(t, len(key(at/2, at-at/2)), annotationNameMax)
+	assert.Greater(t, len(key(at/2, at+1-at/2)), annotationNameMax,
+		"MaxRootShardFrontProxy is lower than necessary")
+
+	assert.LessOrEqual(t, names.MaxRootShard+names.MaxFrontProxy, names.MaxRootShardFrontProxy,
+		"a root shard and a front proxy at their budgets must fit the shared one")
+}
+
 func TestScoped(t *testing.T) {
 	t.Parallel()
 
-	t.Run("stays readable within budget", func(t *testing.T) {
+	t.Run("keeps a readable stub", func(t *testing.T) {
 		t.Parallel()
-		got := names.Scoped(names.MaxShard, "customer-a", "default", "192-168-1-1")
-		assert.True(t, strings.HasPrefix(got, "customer-a-default-"), got)
-		assert.LessOrEqual(t, len(got), names.MaxShard)
+		got := names.Shard("customer-a", "default", "172-18-0-2")
+		assert.True(t, strings.HasPrefix(got, "cust"), got)
+		assert.Contains(t, got, "def")
 	})
 
 	t.Run("bounded for every budget", func(t *testing.T) {
 		t.Parallel()
 		long := strings.Repeat("long", 40)
-		for _, max := range []int{
-			names.MaxRootShard, names.MaxShard, names.MaxFrontProxy,
-			names.MaxCacheServer, names.MaxVirtualWorkspace,
+		for name, budget := range map[string]int{
+			"RootShard":        names.MaxRootShard,
+			"Shard":            names.MaxShard,
+			"FrontProxy":       names.MaxFrontProxy,
+			"CacheServer":      names.MaxCacheServer,
+			"VirtualWorkspace": names.MaxVirtualWorkspace,
 		} {
-			assert.LessOrEqual(t, len(names.Scoped(max, long, long, long)), max)
-			assert.LessOrEqual(t, len(names.Scoped(max, "a", "b", "c")), max)
+			for _, in := range [][3]string{
+				{long, long, long},
+				{"a", "b", "c"},
+				{"", "", ""},
+				{"customer-a", "default", "172-18-0-2"},
+				{"a-", "-b", "c"},
+			} {
+				got := names.Scoped(budget, in[0], in[1], in[2])
+				assert.LessOrEqualf(t, len(got), budget, "%s: %v", name, in)
+				assert.Regexpf(t, `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`, got, "%s: %v", name, in)
+			}
 		}
 	})
 
 	t.Run("cluster id length does not consume budget", func(t *testing.T) {
 		t.Parallel()
-		short := names.Scoped(names.MaxShard, "customer-a", "default", "east")
-		long := names.Scoped(names.MaxShard, "customer-a", "default", strings.Repeat("cluster", 20))
+		short := names.Shard("customer-a", "default", "east")
+		long := names.Shard("customer-a", "default", strings.Repeat("cluster", 20))
 		assert.Equal(t, len(short), len(long))
+		assert.NotEqual(t, short, long)
 	})
 
 	t.Run("distinct inputs stay distinct", func(t *testing.T) {
@@ -180,11 +204,11 @@ func TestScoped(t *testing.T) {
 			{"customer-a", "default", "west"},
 			{"customer-b", "default", "east"},
 			{"customer-a", "other", "east"},
-			// Truncated on every budget, differing only past the cut.
-			{strings.Repeat("x", 60) + "a", "default", "east"},
-			{strings.Repeat("x", 60) + "b", "default", "east"},
+			// Identical once truncated, differing only in the hashed identity.
+			{"customer-aaaaaaaaaa", "default", "east"},
+			{"customer-abbbbbbbbb", "default", "east"},
 		} {
-			got := names.Scoped(names.MaxShard, in[0], in[1], in[2])
+			got := names.Shard(in[0], in[1], in[2])
 			prev, dup := seen[got]
 			require.Falsef(t, dup, "%v and %s both produced %q", in, prev, got)
 			seen[got] = strings.Join(in[:], "/")
@@ -193,18 +217,16 @@ func TestScoped(t *testing.T) {
 
 	t.Run("is deterministic", func(t *testing.T) {
 		t.Parallel()
-		a := names.Scoped(names.MaxShard, "customer-a", "default", "east")
-		b := names.Scoped(names.MaxShard, "customer-a", "default", "east")
-		assert.Equal(t, a, b)
+		assert.Equal(t,
+			names.Shard("customer-a", "default", "east"),
+			names.Shard("customer-a", "default", "east"))
 	})
 
-	t.Run("is a valid dns subdomain", func(t *testing.T) {
+	t.Run("a root shard and front proxy pair fits the shared budget", func(t *testing.T) {
 		t.Parallel()
-		for _, got := range []string{
-			names.Scoped(names.MaxShard, "customer-a", "default", "east"),
-			names.Scoped(names.MaxShard, strings.Repeat("x", 60), "default", "east"),
-		} {
-			assert.Regexp(t, `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`, got)
-		}
+		long := strings.Repeat("long", 40)
+		rs := names.RootShard(long, long, long)
+		fp := names.FrontProxy(long, long, long)
+		assert.LessOrEqual(t, len(rs)+len(fp), names.MaxRootShardFrontProxy)
 	})
 }
