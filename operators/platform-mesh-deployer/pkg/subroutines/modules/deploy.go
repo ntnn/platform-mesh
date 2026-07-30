@@ -23,6 +23,7 @@ import (
 	"time"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
 
@@ -50,6 +51,24 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 			return err
 		}
 
+		celCtx, err := st.resolved.Context(inst)
+		if err != nil {
+			return err
+		}
+
+		// A mapped component is fronted by the front proxy, which needs a
+		// certificate it trusts before the topology can route to it.
+		var mapping *pmdeployerv1alpha1.ResolvedMapping
+		if inst.Component.Mapping != nil {
+			if err := s.ensureServingCert(ctx, st, inst, celCtx); err != nil {
+				return err
+			}
+			mapping, err = resolveMapping(inst, celCtx)
+			if err != nil {
+				return err
+			}
+		}
+
 		objs, err := st.resolved.Render(ctx, inst)
 		if err != nil {
 			return err
@@ -73,7 +92,7 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 			kinds[id][obj.GroupVersionKind()] = struct{}{}
 		}
 
-		componentStatus(status, inst, module.ConfigMapName(mod.Name, inst.Component.Name))
+		componentStatus(status, inst, module.ConfigMapName(mod.Name, inst.Component.Name), mapping)
 	}
 
 	if err := s.prune(ctx, st, keep, kinds); err != nil {
@@ -123,8 +142,38 @@ func kindsOf(set map[schema.GroupVersionKind]struct{}) []schema.GroupVersionKind
 	return out
 }
 
+// resolveMapping interpolates a component's mapping into the concrete path and
+// backend URL the front proxy routes with.
+func resolveMapping(inst module.Instance, celCtx celtemplate.Context) (*pmdeployerv1alpha1.ResolvedMapping, error) {
+	m := inst.Component.Mapping
+
+	service, err := celtemplate.Interpolate(m.Service, celCtx)
+	if err != nil {
+		return nil, fmt.Errorf("component %q: mapping service: %w", inst.Component.Name, err)
+	}
+	name, ok := service.(string)
+	if !ok {
+		return nil, fmt.Errorf("component %q: mapping service evaluated to %T, want string", inst.Component.Name, service)
+	}
+
+	path, err := celtemplate.Interpolate(m.Path, celCtx)
+	if err != nil {
+		return nil, fmt.Errorf("component %q: mapping path: %w", inst.Component.Name, err)
+	}
+	uri, ok := path.(string)
+	if !ok {
+		return nil, fmt.Errorf("component %q: mapping path evaluated to %T, want string", inst.Component.Name, path)
+	}
+
+	return &pmdeployerv1alpha1.ResolvedMapping{
+		Path: uri,
+		Backend: fmt.Sprintf("https://%s.%s.svc:%d",
+			name, inst.Component.Namespace, m.Port),
+	}, nil
+}
+
 // componentStatus records one applied instance.
-func componentStatus(status map[string]*pmdeployerv1alpha1.ModuleComponentStatus, inst module.Instance, configMap string) {
+func componentStatus(status map[string]*pmdeployerv1alpha1.ModuleComponentStatus, inst module.Instance, configMap string, mapping *pmdeployerv1alpha1.ResolvedMapping) {
 	cs, ok := status[inst.Component.Name]
 	if !ok {
 		cs = &pmdeployerv1alpha1.ModuleComponentStatus{
@@ -137,6 +186,7 @@ func componentStatus(status map[string]*pmdeployerv1alpha1.ModuleComponentStatus
 		Cluster:   inst.Cluster.ClusterID,
 		Namespace: inst.Component.Namespace,
 		ConfigMap: configMap,
+		Mapping:   mapping,
 		Ready:     true,
 	})
 }

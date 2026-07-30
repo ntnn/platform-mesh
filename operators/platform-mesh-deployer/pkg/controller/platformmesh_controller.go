@@ -69,9 +69,26 @@ func (r *PlatformMeshReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 			r.registry.Events(),
 			handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshByName(local.GetClient())),
 		)).
+		// A module publishes its resolved front proxy mapping in its
+		// status, which the topology merges into the FrontProxy.
+		Watches(&pmdeployerv1alpha1.Module{}, handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshOfModule())).
 		Named(platformMeshReconcilerName).
 		WithOptions(controller.Options{SkipNameValidation: ptr.To(true)}).
 		Complete(r)
+}
+
+// enqueuePlatformMeshOfModule maps a Module to the PlatformMesh it belongs to.
+func enqueuePlatformMeshOfModule() handler.MapFunc {
+	return func(_ context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
+		mod, ok := obj.(*pmdeployerv1alpha1.Module)
+		if !ok {
+			return nil
+		}
+		return []reconcile.Request{{NamespacedName: ctrlruntimeclient.ObjectKey{
+			Namespace: mod.Namespace,
+			Name:      mod.Spec.PlatformMeshRef.Name,
+		}}}
+	}
 }
 
 // enqueuePlatformMeshByName maps a signal from the deployer's

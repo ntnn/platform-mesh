@@ -218,9 +218,24 @@ type ModuleInstanceStatus struct {
 	// +listType=set
 	Secrets []string `json:"secrets,omitempty"`
 
+	// Mapping is the front proxy path mapping this instance is served
+	// under, once its backend and certificate are resolved.
+	// +optional
+	Mapping *ResolvedMapping `json:"mapping,omitempty"`
+
 	// Ready reports whether the instance's objects have been applied.
 	// +optional
 	Ready bool `json:"ready,omitempty"`
+}
+
+// ResolvedMapping is a component's path mapping with its templating resolved,
+// ready for the topology to merge into the front proxy.
+type ResolvedMapping struct {
+	// Path is the URI path the front proxy routes to the component.
+	Path string `json:"path"`
+
+	// Backend is the URL of the component's Service.
+	Backend string `json:"backend"`
 }
 
 // ModuleComponentStatus records the fan-out of one component.

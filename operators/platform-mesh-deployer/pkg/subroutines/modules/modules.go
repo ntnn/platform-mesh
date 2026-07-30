@@ -106,7 +106,7 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 	if err := s.deploy(ctx, st); err != nil {
 		// kcp-operator mints kubeconfigs asynchronously; waiting for one
 		// is ordinary progress, not a failure.
-		if errors.Is(err, errKubeconfigPending) {
+		if errors.Is(err, errKubeconfigPending) || errors.Is(err, errServingCertPending) {
 			setCondition(mod, ConditionDeployed, metav1.ConditionFalse, "WaitingForKubeconfig", err.Error())
 			return subroutines.StopWithRequeue(requeueWait, err.Error()), nil
 		}

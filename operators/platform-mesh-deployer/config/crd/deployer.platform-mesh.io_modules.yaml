@@ -337,6 +337,23 @@ spec:
                             description: ConfigMap is the name of the generated ConfigMap
                               holding the instance's runtime facts.
                             type: string
+                          mapping:
+                            description: |-
+                              Mapping is the front proxy path mapping this instance is served
+                              under, once its backend and certificate are resolved.
+                            properties:
+                              backend:
+                                description: Backend is the URL of the component's
+                                  Service.
+                                type: string
+                              path:
+                                description: Path is the URI path the front proxy
+                                  routes to the component.
+                                type: string
+                            required:
+                            - backend
+                            - path
+                            type: object
                           namespace:
                             description: Namespace is the namespace the instance's
                               objects were created in.

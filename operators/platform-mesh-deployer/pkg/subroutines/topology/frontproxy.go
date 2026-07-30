@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
@@ -27,6 +28,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
@@ -34,6 +36,11 @@ import (
 func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) error {
 	frontProxy := pm.Spec.Topology.FrontProxy
 	rootRef, err := s.rootShardRef(pm)
+	if err != nil {
+		return err
+	}
+
+	mappings, err := s.moduleMappings(ctx, pm)
 	if err != nil {
 		return err
 	}
@@ -47,6 +54,7 @@ func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployerv1al
 		if err != nil {
 			return err
 		}
+		spec.AdditionalPathMappings = append(spec.AdditionalPathMappings, mappings...)
 		fp := &operatorv1alpha1.FrontProxy{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: pm.Namespace}}
 		if err := s.apply(ctx, pm, fp, func() {
 			fp.Labels = labels(pm.Name, components.FrontProxy, cl.ClusterID)
@@ -88,4 +96,56 @@ func (s *Subroutine) buildFrontProxySpec(pm *pmdeployerv1alpha1.PlatformMesh, fr
 	spec.External.Port = uint32(frontProxy.Exposure.Port)
 
 	return spec, nil
+}
+
+// The paths the front proxy mounts its own CAs and client certificate at.
+// A module's backend is validated against the CA the front proxy already
+// trusts, so a mapping needs no extra mounts.
+const (
+	backendServerCAPath = "/etc/kcp/tls/ca/tls.crt"
+	proxyClientCertPath = "/etc/kcp-front-proxy/requestheader-client/tls.crt"
+	proxyClientKeyPath  = "/etc/kcp-front-proxy/requestheader-client/tls.key"
+)
+
+// moduleMappings collects the path mappings the PlatformMesh's modules have
+// resolved. Only modules own mappings, but only the topology owns the
+// FrontProxy object, so they meet here rather than both writing the same list.
+//
+// Entries are sorted longest path first: the default "/services/" mapping is a
+// prefix of every module path, and kcp's matcher precedence is not verified.
+func (s *Subroutine) moduleMappings(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) ([]operatorv1alpha1.PathMappingEntry, error) {
+	list := &pmdeployerv1alpha1.ModuleList{}
+	if err := s.client.List(ctx, list, ctrlruntimeclient.InNamespace(pm.Namespace)); err != nil {
+		return nil, fmt.Errorf("listing modules: %w", err)
+	}
+
+	var out []operatorv1alpha1.PathMappingEntry
+	for i := range list.Items {
+		mod := &list.Items[i]
+		if mod.Spec.PlatformMeshRef.Name != pm.Name {
+			continue
+		}
+		for _, component := range mod.Status.Components {
+			for _, inst := range component.Instances {
+				if inst.Mapping == nil {
+					continue
+				}
+				out = append(out, operatorv1alpha1.PathMappingEntry{
+					Path:            inst.Mapping.Path,
+					Backend:         inst.Mapping.Backend,
+					BackendServerCA: backendServerCAPath,
+					ProxyClientCert: proxyClientCertPath,
+					ProxyClientKey:  proxyClientKeyPath,
+				})
+			}
+		}
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if len(out[i].Path) != len(out[j].Path) {
+			return len(out[i].Path) > len(out[j].Path)
+		}
+		return out[i].Path < out[j].Path
+	})
+	return out, nil
 }
