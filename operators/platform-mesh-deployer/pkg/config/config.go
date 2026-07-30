@@ -54,7 +54,7 @@ type OperatorConfig struct {
 
 func NewOperatorConfig() OperatorConfig {
 	return OperatorConfig{
-		EnabledControllers: []string{deployer.ControllerConfig, deployer.ControllerCopy},
+		EnabledControllers: []string{deployer.ControllerConfig, deployer.ControllerCopy, deployer.ControllerModule},
 		Provider: ProviderConfig{
 			Namespace:           "platform-mesh-system",
 			KubeconfigSecretKey: "kubeconfig",
@@ -67,7 +67,7 @@ func NewOperatorConfig() OperatorConfig {
 }
 
 func (c *OperatorConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.StringSliceVar(&c.EnabledControllers, "enabled-controllers", c.EnabledControllers, "Controllers to run (config, copy)")
+	fs.StringSliceVar(&c.EnabledControllers, "enabled-controllers", c.EnabledControllers, "Controllers to run (config, copy, module)")
 	fs.StringVar(&c.Provider.Namespace, "provider-namespace", c.Provider.Namespace, "Namespace to watch for kubeconfig secrets")
 	fs.StringVar(&c.Provider.KubeconfigSecretKey, "provider-kubeconfig-secret-key", c.Provider.KubeconfigSecretKey, "Key within the secret containing the kubeconfig")
 	fs.StringVar(&c.Provider.RootShardLabel, "provider-rootshard-label", c.Provider.RootShardLabel, "Label selecting root shard kubeconfig secrets")

@@ -38,6 +38,8 @@ const (
 	ControllerConfig = "config"
 	// ControllerCopy copies compiled CRs to their workload cluster.
 	ControllerCopy = "copy"
+	// ControllerModule deploys Modules onto the engaged clusters.
+	ControllerModule = "module"
 )
 
 // Config contains the necessary configuration to setup the deployer controllers with a manager.
@@ -45,8 +47,7 @@ type Config struct {
 	Log      *logger.Logger
 	Resolver ocm.Resolver
 
-	// EnabledControllers selects which controllers run (ControllerConfig,
-	// ControllerCopy).
+	// EnabledControllers selects which controllers run (ControllerConfig, ControllerCopy, ControllerModule).
 	EnabledControllers []string
 
 	RootShardProvider   multicluster.Provider
@@ -74,6 +75,11 @@ func Setup(mgr mcmanager.Manager, cfg Config) error {
 	if cfg.controllerEnabled(ControllerCopy) {
 		if err := controller.NewCopyReconciler(mgr, registry).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up copy controller: %w", err)
+		}
+	}
+	if cfg.controllerEnabled(ControllerModule) {
+		if err := controller.NewModuleReconciler(mgr, registry, cfg.Resolver).SetupWithManager(mgr); err != nil {
+			return fmt.Errorf("setting up module controller: %w", err)
 		}
 	}
 	return nil
