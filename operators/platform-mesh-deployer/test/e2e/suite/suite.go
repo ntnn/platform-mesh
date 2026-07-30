@@ -20,6 +20,7 @@ package suite
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -112,7 +113,7 @@ func Start(t *testing.T, workloadClusters int) *Env {
 		}
 	}
 
-	startDeployer(t, cfgPlane.Config)
+	startDeployer(t, cfgPlane)
 	t.Cleanup(func() {
 		if t.Failed() {
 			dumpDiagnostics(t, cfgPlane)
@@ -195,10 +196,10 @@ func patchCoreDNS(t *testing.T, c *Cluster) {
 	rolloutWait(t, c, "kube-system", "deployment/coredns")
 }
 
-func startDeployer(t *testing.T, restCfg *rest.Config) {
+func startDeployer(t *testing.T, c *Cluster) {
 	t.Helper()
 	provider := multi.New(multi.Options{})
-	mgr, err := mcmanager.New(restCfg, provider, mcmanager.Options{
+	mgr, err := mcmanager.New(c.Config, provider, mcmanager.Options{
 		Scheme:                 deployer.NewScheme(),
 		Metrics:                metricsserver.Options{BindAddress: "0"},
 		HealthProbeBindAddress: "0",
@@ -207,6 +208,13 @@ func startDeployer(t *testing.T, restCfg *rest.Config) {
 
 	opCfg := config.NewOperatorConfig()
 	cfg := opCfg.DeployerConfig(mgr, nil, ocm.New())
+	// The deployer runs on the host here, where the front proxy's sslip.io
+	// hostname is blocked by DNS rebind protection, so send kcp traffic
+	// straight at the node port.
+	frontProxy := net.JoinHostPort(undashIP(c.NodeIP), "31443")
+	cfg.KcpDial = func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", frontProxy)
+	}
 	require.NoError(t, deployer.AddProviders(provider, mgr, cfg))
 	require.NoError(t, deployer.Setup(mgr, cfg))
 

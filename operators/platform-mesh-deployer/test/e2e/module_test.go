@@ -83,13 +83,14 @@ func TestModule(t *testing.T) {
 	waitPlatformMeshReady(t, env, pm.Name)
 	env.VerifyKcp(t, env.Config, env.Config, 2)
 
-	// Stand in for pm-provisioner and seed a value only reachable through
-	// the module's own kcp workspace.
-	ws := env.ProvisionModuleWorkspace(t, env.Config, env.Config, "acme")
-	want := seedSecret(t, ws)
-
 	mod := acmeModule(env.RegistryURL(), image)
 	require.NoError(t, env.Config.Client.Create(t.Context(), mod))
+
+	// The deployer provisions root:modules:acme itself; seed a value that
+	// is only reachable through that workspace.
+	env.WaitWorkspace(t, env.Config, env.Config, "root:modules", "acme")
+	want := seedSecret(t, env.WorkspaceClient(t, env.Config, env.Config, "root:modules:acme"))
+
 	waitModuleReady(t, env, mod.Name)
 
 	// Installing a module must not disturb kcp.

@@ -178,24 +178,19 @@ func createWorkspace(t *testing.T, parent ctrlruntimeclient.Client, name, shardN
 	}
 }
 
-// ProvisionModuleWorkspace creates root:modules and the module's own workspace
-// below it, and returns a client scoped to that workspace. It stands in for
-// pm-provisioner, which owns the root structure but does not exist yet.
-func (e *Env) ProvisionModuleWorkspace(t *testing.T, root, frontProxy *Cluster, module string) ctrlruntimeclient.Client {
+// WorkspaceClient returns a client scoped to a kcp workspace path. The
+// workspace must already exist; the deployer's provisioner creates it.
+func (e *Env) WorkspaceClient(t *testing.T, root, frontProxy *Cluster, path string) ctrlruntimeclient.Client {
 	t.Helper()
-
 	base := e.mintAdminConfig(t, root, frontProxy)
-	scheme := kcpScheme(t)
+	return clusterClient(t, base, path, kcpScheme(t))
+}
 
-	rootClient := clusterClient(t, base, "root", scheme)
-	createWorkspace(t, rootClient, "modules", "")
-	waitWorkspaceReady(t, rootClient, "modules")
-
-	modulesClient := clusterClient(t, base, "root:modules", scheme)
-	createWorkspace(t, modulesClient, module, "")
-	waitWorkspaceReady(t, modulesClient, module)
-
-	return clusterClient(t, base, "root:modules:"+module, scheme)
+// WaitWorkspace blocks until the workspace at path is usable.
+func (e *Env) WaitWorkspace(t *testing.T, root, frontProxy *Cluster, parent, name string) {
+	t.Helper()
+	base := e.mintAdminConfig(t, root, frontProxy)
+	waitWorkspaceReady(t, clusterClient(t, base, parent, kcpScheme(t)), name)
 }
 
 func waitWorkspaceReady(t *testing.T, rootClient ctrlruntimeclient.Client, name string) {
