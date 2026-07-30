@@ -74,7 +74,7 @@ func NewPlatformMeshReconciler(mgr mcmanager.Manager, registry *clusters.Registr
 
 func (r *PlatformMeshReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 	local := mgr.GetLocalManager()
-	return ctrl.NewControllerManagedBy(local).
+	b := ctrl.NewControllerManagedBy(local).
 		For(&pmdeployerv1alpha1.PlatformMesh{}).
 		WatchesRawSource(source.Channel(
 			r.registry.Events(),
@@ -82,10 +82,34 @@ func (r *PlatformMeshReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 		)).
 		// A module publishes its resolved front proxy mapping in its
 		// status, which the topology merges into the FrontProxy.
-		Watches(&pmdeployerv1alpha1.Module{}, handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshOfModule())).
+		Watches(&pmdeployerv1alpha1.Module{}, handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshOfModule()))
+
+	for _, tk := range templateKinds {
+		b = b.Watches(tk.obj(), handler.EnqueueRequestsFromMapFunc(
+			enqueuePlatformMeshesUsingTemplate(local.GetClient(), tk.kind)))
+	}
+
+	return b.
 		Named(platformMeshReconcilerName).
 		WithOptions(controller.Options{SkipNameValidation: ptr.To(true)}).
 		Complete(r)
+}
+
+// enqueuePlatformMeshesUsingTemplate maps a template to every PlatformMesh
+// referencing it, which several may.
+func enqueuePlatformMeshesUsingTemplate(c ctrlruntimeclient.Client, kind string) handler.MapFunc {
+	return func(ctx context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
+		key := templateKey{kind: kind, namespace: obj.GetNamespace(), name: obj.GetName()}
+		using, err := platformMeshesUsing(ctx, c, key)
+		if err != nil {
+			return nil
+		}
+		reqs := make([]reconcile.Request, 0, len(using))
+		for i := range using {
+			reqs = append(reqs, reconcile.Request{NamespacedName: ctrlruntimeclient.ObjectKeyFromObject(&using[i])})
+		}
+		return reqs
+	}
 }
 
 // enqueuePlatformMeshOfModule maps a Module to the PlatformMesh it belongs to.

@@ -86,6 +86,11 @@ func Setup(mgr mcmanager.Manager, cfg Config) error {
 		if err := controller.NewPlatformMeshReconciler(mgr, registry, access).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up config controller: %w", err)
 		}
+		for _, r := range controller.NewTemplateReconcilers(mgr) {
+			if err := r.SetupWithManager(mgr); err != nil {
+				return fmt.Errorf("setting up template controller: %w", err)
+			}
+		}
 	}
 	if cfg.controllerEnabled(ControllerCopy) {
 		if err := controller.NewCopyReconciler(mgr, registry).SetupWithManager(mgr); err != nil {

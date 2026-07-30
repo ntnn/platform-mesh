@@ -1,0 +1,93 @@
+/*
+Copyright The Platform Mesh Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"context"
+	"fmt"
+
+	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	ctrl "sigs.k8s.io/controller-runtime"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"k8s.io/utils/ptr"
+	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
+)
+
+// TemplateReconciler holds a finalizer on a topology template for as long as a
+// PlatformMesh references it. Templates are shared, so deleting one can break
+// several installations at once.
+type TemplateReconciler struct {
+	client ctrlruntimeclient.Client
+	kind   string
+	object func() ctrlruntimeclient.Object
+}
+
+// NewTemplateReconcilers returns one reconciler per topology template kind.
+func NewTemplateReconcilers(mgr mcmanager.Manager) []*TemplateReconciler {
+	local := mgr.GetLocalManager().GetClient()
+	out := make([]*TemplateReconciler, 0, len(templateKinds))
+	for _, tk := range templateKinds {
+		out = append(out, &TemplateReconciler{client: local, kind: tk.kind, object: tk.obj})
+	}
+	return out
+}
+
+func (r *TemplateReconciler) SetupWithManager(mgr mcmanager.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr.GetLocalManager()).
+		For(r.object()).
+		// A PlatformMesh gaining or dropping a reference changes whether
+		// its templates may be deleted.
+		Watches(&pmdeployerv1alpha1.PlatformMesh{}, handler.EnqueueRequestsFromMapFunc(enqueueTemplatesOfPlatformMesh(r.kind))).
+		Named(r.kind + "Reconciler").
+		WithOptions(controller.Options{SkipNameValidation: ptr.To(true)}).
+		Complete(r)
+}
+
+func (r *TemplateReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+	tpl := r.object()
+	if err := r.client.Get(ctx, req.NamespacedName, tpl); err != nil {
+		return reconcile.Result{}, ctrlruntimeclient.IgnoreNotFound(err)
+	}
+
+	using, err := platformMeshesUsing(ctx, r.client, templateKey{
+		kind: r.kind, namespace: req.Namespace, name: req.Name,
+	})
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	inUse := len(using) > 0
+	if controllerutil.ContainsFinalizer(tpl, pmdeployerv1alpha1.TemplateFinalizer) == inUse {
+		return reconcile.Result{}, nil
+	}
+	if inUse {
+		controllerutil.AddFinalizer(tpl, pmdeployerv1alpha1.TemplateFinalizer)
+	} else {
+		controllerutil.RemoveFinalizer(tpl, pmdeployerv1alpha1.TemplateFinalizer)
+	}
+	if err := r.client.Update(ctx, tpl); err != nil && !apierrors.IsConflict(err) {
+		return reconcile.Result{}, fmt.Errorf("updating %s %s finalizer: %w", r.kind, req.NamespacedName, err)
+	}
+	return reconcile.Result{}, nil
+}
