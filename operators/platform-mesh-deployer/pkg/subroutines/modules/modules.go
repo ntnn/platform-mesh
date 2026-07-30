@@ -72,6 +72,15 @@ func (s *Subroutine) GetName() string { return Name }
 func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
 	mod := obj.(*pmdeployerv1alpha1.Module)
 
+	if err := validate(mod); err != nil {
+		setCondition(mod, ConditionGated, metav1.ConditionFalse, "Invalid", err.Error())
+		return subroutines.Result{}, err
+	}
+	if err := s.detectCycle(ctx, mod); err != nil {
+		setCondition(mod, ConditionGated, metav1.ConditionFalse, "Invalid", err.Error())
+		return subroutines.Result{}, err
+	}
+
 	// Post-topology modules are the only ones implemented; pre-topology
 	// modules additionally gate the topology itself and land later.
 	pm, err := s.platformMesh(ctx, mod)

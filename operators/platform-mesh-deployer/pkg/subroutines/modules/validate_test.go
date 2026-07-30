@@ -1,0 +1,89 @@
+/*
+Copyright The Platform Mesh Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package modules_test
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
+
+	corev1 "k8s.io/api/core/v1"
+	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// These are cross-field rules the CRD cannot express, so they are rejected
+// before anything is created rather than failing halfway through a deploy.
+func TestProcessRejectsUnsatisfiableReferences(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*pmdeployerv1alpha1.Module)
+		wantErr string
+	}{
+		{
+			name: "kubeconfig references an undeclared workspace",
+			mutate: func(m *pmdeployerv1alpha1.Module) {
+				m.Spec.Workspaces = []pmdeployerv1alpha1.ModuleWorkspace{{Name: ""}}
+				m.Spec.Kubeconfigs = []pmdeployerv1alpha1.ModuleKubeconfig{{
+					Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy, Workspace: "nope",
+				}}
+			},
+			wantErr: "which the module does not declare",
+		},
+		{
+			name: "component references an undeclared kubeconfig",
+			mutate: func(m *pmdeployerv1alpha1.Module) {
+				m.Spec.Components[0].Kubeconfigs = []string{"missing"}
+			},
+			wantErr: "references kubeconfig",
+		},
+		{
+			name: "duplicate dependency",
+			mutate: func(m *pmdeployerv1alpha1.Module) {
+				m.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "base"}, {Name: "base"}}
+			},
+			wantErr: "more than once",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mod := testModule()
+			tt.mutate(mod)
+
+			sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(true), mod}, clusters.NewRegistry())
+			_, err := sub.Process(t.Context(), mod)
+			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+// A kubeconfig scoped to a declared workspace is accepted.
+func TestProcessAcceptsDeclaredReferences(t *testing.T) {
+	mod := testModule()
+	mod.Spec.Workspaces = []pmdeployerv1alpha1.ModuleWorkspace{{Name: ""}, {Name: "validation"}}
+	mod.Spec.Kubeconfigs = []pmdeployerv1alpha1.ModuleKubeconfig{
+		{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy},
+		{Name: "val", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy, Workspace: "validation"},
+	}
+	mod.Spec.Components[0].Kubeconfigs = []string{"kcp", "val"}
+
+	sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(true), mod}, clusters.NewRegistry())
+	_, err := sub.Process(t.Context(), mod)
+	require.NoError(t, err)
+}

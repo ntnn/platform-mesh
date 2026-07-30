@@ -296,16 +296,72 @@ func TestProcessDependencies(t *testing.T) {
 	}
 }
 
-func TestProcessRejectsSelfDependency(t *testing.T) {
-	mod := testModule()
-	mod.Spec.DependsOn = []corev1.LocalObjectReference{{Name: mod.Name}}
+// A cycle is a permanent misconfiguration, so it fails instead of requeueing
+// forever with WaitingForDependency.
+func TestProcessRejectsDependencyCycles(t *testing.T) {
+	tests := []struct {
+		name  string
+		build func() []ctrlruntimeclient.Object
+	}{
+		{
+			name: "self dependency",
+			build: func() []ctrlruntimeclient.Object {
+				mod := testModule()
+				mod.Spec.DependsOn = []corev1.LocalObjectReference{{Name: mod.Name}}
+				return []ctrlruntimeclient.Object{platformMesh(true), mod}
+			},
+		},
+		{
+			name: "two modules depending on each other",
+			build: func() []ctrlruntimeclient.Object {
+				a := testModule()
+				a.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "base"}}
+				b := testModule()
+				b.Name = "base"
+				b.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "acme"}}
+				return []ctrlruntimeclient.Object{platformMesh(true), a, b}
+			},
+		},
+		{
+			name: "cycle through a third module",
+			build: func() []ctrlruntimeclient.Object {
+				a := testModule()
+				a.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "b"}}
+				b := testModule()
+				b.Name = "b"
+				b.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "c"}}
+				c := testModule()
+				c.Name = "c"
+				c.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "acme"}}
+				return []ctrlruntimeclient.Object{platformMesh(true), a, b, c}
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			objs := tt.build()
+			mod := objs[1].(*pmdeployerv1alpha1.Module)
 
-	reg := clusters.NewRegistry()
-	sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(true), mod}, reg)
+			sub := newSubroutine(t, objs, clusters.NewRegistry())
+			_, err := sub.Process(t.Context(), mod)
+			require.ErrorContains(t, err, "dependency cycle")
+		})
+	}
+}
 
-	res, err := sub.Process(t.Context(), mod)
-	require.NoError(t, err)
-	assert.False(t, res.IsContinue())
+// A dependency chain without a cycle must not be mistaken for one.
+func TestProcessAcceptsDependencyChain(t *testing.T) {
+	a := testModule()
+	a.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "b"}}
+	b := testModule()
+	b.Name = "b"
+	b.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "c"}}
+	c := testModule()
+	c.Name = "c"
+
+	sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(true), a, b, c}, clusters.NewRegistry())
+	_, err := sub.Process(t.Context(), a)
+	require.NoError(t, err, "a chain is not a cycle")
 }
 
 func TestProcessPrunesStaleInstances(t *testing.T) {

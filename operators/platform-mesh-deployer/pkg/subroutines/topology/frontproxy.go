@@ -120,6 +120,9 @@ func (s *Subroutine) moduleMappings(ctx context.Context, pm *pmdeployerv1alpha1.
 	}
 
 	var out []operatorv1alpha1.PathMappingEntry
+	// Two modules claiming the same path would both be written and the
+	// front proxy would route by whichever won the sort, so refuse instead.
+	claimed := map[string]string{}
 	for i := range list.Items {
 		mod := &list.Items[i]
 		if mod.Spec.PlatformMeshRef.Name != pm.Name {
@@ -130,6 +133,13 @@ func (s *Subroutine) moduleMappings(ctx context.Context, pm *pmdeployerv1alpha1.
 				if inst.Mapping == nil {
 					continue
 				}
+				owner := mod.Name + "/" + component.Name
+				if previous, taken := claimed[inst.Mapping.Path]; taken && previous != owner {
+					return nil, fmt.Errorf("path %q is claimed by both %s and %s",
+						inst.Mapping.Path, previous, owner)
+				}
+				claimed[inst.Mapping.Path] = owner
+
 				out = append(out, operatorv1alpha1.PathMappingEntry{
 					Path:            inst.Mapping.Path,
 					Backend:         inst.Mapping.Backend,
