@@ -20,12 +20,12 @@ package suite
 import (
 	"context"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -41,7 +41,11 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/utils/ptr"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlconfig "sigs.k8s.io/controller-runtime/pkg/config"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/providers/multi"
@@ -80,6 +84,9 @@ type Cluster struct {
 type Env struct {
 	Config    *Cluster
 	Workloads []*Cluster
+	// registryAddr is the forwarded address of the OCM registry, set by
+	// InstallRegistry.
+	registryAddr string
 }
 
 // Start provisions the config plane and workloadClusters workload clusters.
@@ -201,23 +208,27 @@ func patchCoreDNS(t *testing.T, c *Cluster) {
 
 func startDeployer(t *testing.T, c *Cluster) {
 	t.Helper()
+	// Without this the deployer's own reconcile errors are silently dropped,
+	// leaving a failing test with nothing to go on. controller-runtime keeps
+	// only the first logger, so it cannot be bound to a single test.
+	setLogger()
 	provider := multi.New(multi.Options{})
 	mgr, err := mcmanager.New(c.Config, provider, mcmanager.Options{
 		Scheme:                 deployer.NewScheme(),
 		Metrics:                metricsserver.Options{BindAddress: "0"},
 		HealthProbeBindAddress: "0",
+		// Controller names are unique per process, not per manager, so every
+		// test after the first would fail to start its cluster providers.
+		Controller: ctrlconfig.Controller{SkipNameValidation: ptr.To(true)},
 	})
 	require.NoError(t, err)
 
 	opCfg := config.NewOperatorConfig()
 	cfg := opCfg.DeployerConfig(mgr, nil, ocm.New())
 	// The deployer runs on the host here, where the front proxy's sslip.io
-	// hostname is blocked by DNS rebind protection, so send kcp traffic
-	// straight at the node port.
-	frontProxy := net.JoinHostPort(undashIP(c.NodeIP), "31443")
-	cfg.KcpDial = func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", frontProxy)
-	}
+	// hostname is blocked by DNS rebind protection and the node address is
+	// not routable on every container runtime.
+	cfg.KcpDial = FrontProxyDialer(t, c)
 	require.NoError(t, deployer.AddProviders(provider, mgr, cfg))
 	require.NoError(t, deployer.Setup(mgr, cfg))
 
@@ -359,3 +370,7 @@ func restToKubeconfig(cfg *rest.Config) ([]byte, error) {
 	c.CurrentContext = "default"
 	return clientcmd.Write(*c)
 }
+
+var setLogger = sync.OnceFunc(func() {
+	ctrllog.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(os.Stderr)))
+})
