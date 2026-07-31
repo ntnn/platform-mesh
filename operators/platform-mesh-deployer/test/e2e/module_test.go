@@ -276,6 +276,12 @@ func getModuleIdentity(t *testing.T, env *suite.Env) map[string]string {
 			return false
 		}
 		return true
-	}, 5*time.Minute, 5*time.Second, "module not reachable through the front proxy on %s: %s", url, &lastErr)
+	}, 5*time.Minute, 5*time.Second, "module not reachable through the front proxy on %s: %s", url, lateString{&lastErr})
 	return out
 }
+
+// lateString reads the value when testify renders the failure message rather
+// than when Eventuallyf is called.
+type lateString struct{ s *string }
+
+func (l lateString) String() string { return *l.s }
