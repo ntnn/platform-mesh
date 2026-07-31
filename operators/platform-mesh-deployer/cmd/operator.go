@@ -91,7 +91,7 @@ func RunController(_ *cobra.Command, _ []string) { // coverage-ignore
 	provider := multi.New(multi.Options{})
 
 	mgr, err := mcmanager.New(restCfg, provider, mcmanager.Options{
-		Scheme: scheme,
+		Scheme: deployer.NewScheme(),
 		Metrics: metricsserver.Options{
 			BindAddress:   defaultCfg.Metrics.BindAddress,
 			SecureServing: defaultCfg.Metrics.Secure,

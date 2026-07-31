@@ -19,18 +19,14 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	platformmeshconfig "go.platform-mesh.io/golang-commons/config"
 	"go.platform-mesh.io/golang-commons/logger"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/config"
 
-	"k8s.io/apimachinery/pkg/runtime"
-	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 var (
-	scheme      = runtime.NewScheme()
 	operatorCfg config.OperatorConfig
 	defaultCfg  *platformmeshconfig.CommonServiceConfig
 	log         *logger.Logger
@@ -42,9 +38,6 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	utilruntime.Must(pmdeployerv1alpha1.AddToScheme(scheme))
-	//+kubebuilder:scaffold:scheme
-
 	rootCmd.AddCommand(operatorCmd)
 
 	defaultCfg = platformmeshconfig.NewDefaultConfig()
