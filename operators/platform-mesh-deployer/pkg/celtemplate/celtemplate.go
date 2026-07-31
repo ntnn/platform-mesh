@@ -19,9 +19,12 @@ package celtemplate
 
 import (
 	"fmt"
+	"reflect"
 	"sync"
 
 	"github.com/google/cel-go/cel"
+	"github.com/google/cel-go/common/types"
+	"github.com/google/cel-go/common/types/ref"
 	"github.com/google/cel-go/ext"
 )
 
@@ -50,6 +53,9 @@ type Context struct {
 	Endpoints map[string]string
 	// Values is the module's spec.values.
 	Values map[string]any
+	// OCM is the module's component descriptor, so a payload can read the
+	// component's own resources instead of having them passed through Values.
+	OCM map[string]any
 }
 
 func (c Context) activation() map[string]any {
@@ -67,6 +73,7 @@ func (c Context) activation() map[string]any {
 		"kubeconfigSecrets": orEmpty(c.KubeconfigSecrets),
 		"endpoints":         orEmpty(c.Endpoints),
 		"values":            orEmptyAny(c.Values),
+		"ocm":               orEmptyAny(c.OCM),
 	}
 }
 
@@ -109,9 +116,53 @@ func celEnv() (*cel.Env, error) {
 			cel.Variable("kubeconfigSecrets", strMap),
 			cel.Variable("endpoints", strMap),
 			cel.Variable("values", cel.MapType(cel.StringType, cel.DynType)),
+			cel.Variable("ocm", cel.MapType(cel.StringType, cel.DynType)),
+			cel.Function("byName",
+				cel.MemberOverload("list_byName_string",
+					[]*cel.Type{cel.ListType(cel.DynType), cel.StringType},
+					cel.DynType,
+					cel.BinaryBinding(byName),
+				),
+			),
 		)
 	})
 	return env, envErr
+}
+
+// byName selects the one element of an OCM descriptor list carrying the given
+// name.
+//
+// A name does not identify an element on its own: OCM identity is the name plus
+// the extra identity attributes, and a component may legitimately carry several
+// resources of one name, one per platform. Rather than take the first, an
+// ambiguous name is an error and the payload has to select on extraIdentity
+// itself. filter() evaluates its predicate against every element, so the
+// attribute has to be guarded:
+//
+//	ocm.resources.filter(r, "os" in r.extraIdentity && r.extraIdentity.os == "linux")[0]
+func byName(list, name ref.Val) ref.Val {
+	want, ok := name.Value().(string)
+	if !ok {
+		return types.MaybeNoSuchOverloadErr(name)
+	}
+	native, err := list.ConvertToNative(reflect.TypeOf([]any{}))
+	if err != nil {
+		return types.WrapErr(err)
+	}
+	var found []any
+	for _, elem := range native.([]any) {
+		if m, ok := elem.(map[string]any); ok && m["name"] == want {
+			found = append(found, m)
+		}
+	}
+	switch len(found) {
+	case 1:
+		return types.DefaultTypeAdapter.NativeToValue(found[0])
+	case 0:
+		return types.NewErr("byName(%q): not found", want)
+	default:
+		return types.NewErr("byName(%q): %d elements share this name, select on extraIdentity with filter()", want, len(found))
+	}
 }
 
 // Eval compiles and evaluates a string-typed CEL expression against ctx.

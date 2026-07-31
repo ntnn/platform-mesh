@@ -87,6 +87,10 @@ func (r *Resolved) Context(inst Instance) (celtemplate.Context, error) {
 	if err != nil {
 		return celtemplate.Context{}, err
 	}
+	desc, err := Descriptor(r.CV.Descriptor())
+	if err != nil {
+		return celtemplate.Context{}, err
+	}
 	workspace, workspaces := r.WorkspacePaths()
 	secrets := map[string]string{}
 	for _, kc := range r.Kubeconfigs(inst.Component) {
@@ -106,6 +110,7 @@ func (r *Resolved) Context(inst Instance) (celtemplate.Context, error) {
 		Workspaces:        workspaces,
 		KubeconfigSecrets: secrets,
 		Values:            values,
+		OCM:               desc,
 	}, nil
 }
 
