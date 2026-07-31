@@ -82,6 +82,9 @@ func (gatewayAPIRenderer) teardown(ctx context.Context, workload ctrlruntimeclie
 	if err := workload.List(ctx, list,
 		ctrlruntimeclient.InNamespace(namespace),
 		ctrlruntimeclient.MatchingLabels{topology.LabelPlatformMesh: pmName},
+		// Select positively on a label only this subroutine writes; modules label
+		// their own routes with the same platform mesh and would be deleted too.
+		ctrlruntimeclient.HasLabels{topology.LabelComponent},
 	); err != nil {
 		return err
 	}

@@ -26,6 +26,7 @@ import (
 	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/exposure"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
@@ -190,6 +191,46 @@ func TestExposureTeardownStale(t *testing.T) {
 	require.Len(t, list.Items, 1)
 	assert.Equal(t, names.FrontProxy("customer-a", "fp", "east")+"-gw", list.Items[0].Name)
 	assert.Equal(t, "east", list.Items[0].Labels[topology.LabelCluster])
+}
+
+func TestExposureTeardownKeepsModuleRoutes(t *testing.T) {
+	s := testScheme(t)
+	owned := &gwapiv1alpha2.TLSRoute{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "acme-ui",
+			Namespace: "pm",
+			Labels: map[string]string{
+				module.LabelPlatformMesh: "customer-a",
+				module.LabelModule:       "acme",
+				module.LabelComponent:    "ui",
+				module.LabelCluster:      "east",
+			},
+		},
+	}
+	fpCl := fake.NewClientBuilder().WithScheme(s).WithObjects(owned).Build()
+
+	pm := &pmdeployerv1alpha1.PlatformMesh{
+		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
+		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
+			Topology: pmdeployerv1alpha1.Topology{
+				RootShard:  pmdeployerv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
+				FrontProxy: pmdeployerv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
+			},
+			Ingress: []pmdeployerv1alpha1.IngressStack{{
+				Name:       "gw",
+				Type:       pmdeployerv1alpha1.IngressTypeGatewayAPI,
+				GatewayAPI: &pmdeployerv1alpha1.GatewayAPIValues{GatewayName: "eg", GatewayNamespace: "envoy-gateway-system"},
+			}},
+		},
+	}
+	reg := clusters.NewRegistry()
+	engage(t, reg, "frontproxy#customer-a--east", fpCl)
+
+	_, err := exposure.New(reg).Process(context.Background(), pm)
+	require.NoError(t, err)
+
+	route := &gwapiv1alpha2.TLSRoute{}
+	assert.NoError(t, fpCl.Get(context.Background(), ctrlruntimeclient.ObjectKeyFromObject(owned), route))
 }
 
 func ptrExposure(e pmdeployerv1alpha1.Exposure) *pmdeployerv1alpha1.Exposure { return &e }
