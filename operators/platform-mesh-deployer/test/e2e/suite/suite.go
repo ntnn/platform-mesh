@@ -23,6 +23,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -156,7 +157,7 @@ func (e *Env) EngageWorkload(t *testing.T, platformMesh string, workload *Cluste
 
 func createCluster(t *testing.T, role string) *Cluster {
 	t.Helper()
-	name := kindClusterPrefix + "-" + role
+	name := kindClusterPrefix + "-" + slug(t.Name()) + "-" + role
 	kubeconfig := filepath.Join(t.TempDir(), name+".kubeconfig")
 
 	sh(t, "kind", "create", "cluster", "--name", name, "--kubeconfig", kubeconfig)
@@ -177,6 +178,15 @@ func createCluster(t *testing.T, role string) *Cluster {
 	c.NodeIP = dashedIP(nodeInternalIP(t, c))
 	patchCoreDNS(t, c)
 	return c
+}
+
+var nonAlnum = regexp.MustCompile(`[^a-z0-9]+`)
+
+// slug turns a test name into a cluster name component, so tests running in
+// parallel do not collide on the same kind cluster.
+func slug(name string) string {
+	name = nonAlnum.ReplaceAllString(strings.ToLower(strings.TrimPrefix(name, "Test")), "-")
+	return strings.Trim(name, "-")
 }
 
 // kind forward DNS to the node its running on, which may block private
