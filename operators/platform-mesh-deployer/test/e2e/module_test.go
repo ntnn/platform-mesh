@@ -205,6 +205,9 @@ func assertModuleRunning(t *testing.T, env *suite.Env, mod *pmdeployerv1alpha1.M
 		return dep.Status.ReadyReplicas > 0
 	}, 5*time.Minute, 5*time.Second, "module Deployment did not become ready")
 	assert.Equal(t, "acme", dep.Labels["deployer.platform-mesh.io/module"])
+	// The payload read these off its own component descriptor.
+	assert.Equal(t, moduleVersion, dep.Labels["e2e.platform-mesh.io/component-version"])
+	assert.Equal(t, suite.ManifestResourceType, dep.Annotations["e2e.platform-mesh.io/payload-type"])
 
 	// The workload answers with what the deployer handed it, which proves
 	// the ConfigMap and the templated value both arrived.

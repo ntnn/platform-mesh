@@ -6,6 +6,12 @@ kind: Deployment
 metadata:
   name: ${module + "-" + component}
   namespace: ${targetNamespace}
+  labels:
+    # Read off the component descriptor rather than passed through values.
+    e2e.platform-mesh.io/component-version: ${ocm.version}
+  annotations:
+    # An annotation, not a label: a resource type carries a slash.
+    e2e.platform-mesh.io/payload-type: ${ocm.resources.byName("app-manifests").type}
 spec:
   replicas: ${values.replicas}
   selector:
