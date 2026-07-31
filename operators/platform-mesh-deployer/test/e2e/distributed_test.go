@@ -33,6 +33,7 @@ import (
 
 // TestDistributedClusters deploys each component onto its own workload cluster.
 func TestDistributedClusters(t *testing.T) {
+	t.Parallel()
 	env := suite.Start(t, 4)
 	rs, sh1, sh2, fp := env.Workloads[0], env.Workloads[1], env.Workloads[2], env.Workloads[3]
 

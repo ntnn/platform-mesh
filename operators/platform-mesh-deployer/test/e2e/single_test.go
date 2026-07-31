@@ -34,6 +34,7 @@ import (
 
 // TestSingleCluster runs the full pipeline on one cluster.
 func TestSingleCluster(t *testing.T) {
+	t.Parallel()
 	env := suite.Start(t, 0)
 	env.EngageWorkload(t, "customer-a", env.Config, "rootshard", "frontproxy", "shards-default")
 

@@ -62,6 +62,7 @@ const (
 // an in-cluster OCI registry, checks kcp still works and then checks the module
 // itself is running with the context the deployer gave it.
 func TestModule(t *testing.T) {
+	t.Parallel()
 	env := suite.Start(t, 0)
 	env.EngageWorkload(t, "customer-a", env.Config, "rootshard", "frontproxy", "shards-default")
 	env.InstallRegistry(t)

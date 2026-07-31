@@ -34,6 +34,7 @@ import (
 
 // TestConfigWorkloadCluster runs the full pipeline against two clusters.
 func TestConfigWorkloadCluster(t *testing.T) {
+	t.Parallel()
 	env := suite.Start(t, 1)
 	workload := env.Workloads[0]
 
