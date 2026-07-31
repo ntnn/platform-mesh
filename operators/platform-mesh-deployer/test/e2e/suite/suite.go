@@ -219,14 +219,17 @@ func patchCoreDNS(t *testing.T, c *Cluster) {
 func startDeployer(t *testing.T, c *Cluster) {
 	t.Helper()
 	// Without this the deployer's own reconcile errors are silently dropped,
-	// leaving a failing test with nothing to go on. controller-runtime keeps
-	// only the first logger, so it cannot be bound to a single test.
+	// leaving a failing test with nothing to go on. Still needed next to the
+	// manager's own logger below, for the components built outside it.
 	setLogger()
 	provider := multi.New(multi.Options{})
 	mgr, err := mcmanager.New(c.Config, provider, mcmanager.Options{
 		Scheme:                 deployer.NewScheme(),
 		Metrics:                metricsserver.Options{BindAddress: "0"},
 		HealthProbeBindAddress: "0",
+		// Tests run in parallel, so name the manager's logs after the test
+		// that owns them.
+		Logger: zap.New(zap.UseDevMode(true), zap.WriteTo(os.Stderr)).WithName(t.Name()),
 		// Controller names are unique per process, not per manager, so every
 		// test after the first would fail to start its cluster providers.
 		Controller: ctrlconfig.Controller{SkipNameValidation: ptr.To(true)},
