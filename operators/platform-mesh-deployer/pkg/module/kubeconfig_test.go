@@ -38,6 +38,7 @@ func TestDerivedNames(t *testing.T) {
 	assert.Equal(t, "acme-kcp-s1", module.KubeconfigName("acme", "kcp", "s1"))
 	assert.Equal(t, "acme-app-serving", module.ServingCertSecretName("acme", "app"))
 	assert.Equal(t, "acme-app-serving-s1", module.ServingCertName("acme", "app", "s1"))
+	assert.Equal(t, "acme-app-requestheader-ca", module.RequestHeaderCASecretName("acme", "app"))
 	assert.Equal(t, "acme-app", module.ConfigMapName("acme", "app"))
 }
 

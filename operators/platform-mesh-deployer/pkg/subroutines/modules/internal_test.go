@@ -180,6 +180,20 @@ func TestRootShardIssuer(t *testing.T) {
 	require.ErrorContains(t, err, "exactly one root shard")
 }
 
+// The requestheader CA is a kcp-operator secret named after the root shard, so
+// waiting for it is ordinary progress rather than a failure.
+func TestRequestHeaderCAPending(t *testing.T) {
+	sub, st := internalSubroutine(t, "rootshard#customer-a--east")
+	st.resolved = &module.Resolved{Module: &pmdeployerv1alpha1.Module{
+		ObjectMeta: metav1.ObjectMeta{Name: "acme", Namespace: "pm"},
+	}}
+	inst := instance("vw", pmdeployerv1alpha1.PlacementPerFrontProxy, "fp1", "")
+
+	err := sub.ensureRequestHeaderCA(context.Background(), st, inst)
+	require.ErrorIs(t, err, errRequestHeaderCAPending)
+	assert.Contains(t, err.Error(), names.RootShard("customer-a", "root", "east")+"-requestheader-client-ca")
+}
+
 // The mapping is templated per instance, so the backend is only known after
 // interpolation.
 func TestResolveMapping(t *testing.T) {

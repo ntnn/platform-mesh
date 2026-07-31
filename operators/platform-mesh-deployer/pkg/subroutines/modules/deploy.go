@@ -58,10 +58,14 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 		celCtx.Endpoints = st.endpoints
 
 		// A mapped component is fronted by the front proxy, which needs a
-		// certificate it trusts before the topology can route to it.
+		// certificate it trusts before the topology can route to it, and which
+		// forwards the caller's identity signed by the requestheader CA.
 		var mapping *pmdeployerv1alpha1.ResolvedMapping
 		if inst.Component.Mapping != nil {
 			if err := s.ensureServingCert(ctx, st, inst, celCtx); err != nil {
+				return err
+			}
+			if err := s.ensureRequestHeaderCA(ctx, st, inst); err != nil {
 				return err
 			}
 			mapping, err = resolveMapping(inst, celCtx)

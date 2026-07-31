@@ -47,6 +47,10 @@ var certificateGVK = schema.GroupVersionKind{
 // been issued yet.
 var errServingCertPending = fmt.Errorf("serving certificate not issued yet")
 
+// errRequestHeaderCAPending signals that kcp-operator has not created the root
+// shard's requestheader CA yet.
+var errRequestHeaderCAPending = fmt.Errorf("requestheader CA not created yet")
+
 // ensureServingCert issues a TLS certificate for a mapped component's backend
 // Service and copies it to the component's cluster.
 //
@@ -146,10 +150,65 @@ func serviceDNSNames(service, namespace string) []string {
 // rootShardIssuer is the name of the cert-manager Issuer for the root shard's
 // server CA, which kcp-operator creates alongside the root shard.
 func (s *Subroutine) rootShardIssuer(st *state) (string, error) {
+	name, err := s.rootShardName(st)
+	if err != nil {
+		return "", err
+	}
+	return name + "-server-ca", nil
+}
+
+// rootShardName is the root shard admin CR name, which kcp-operator derives its
+// own secret names from.
+func (s *Subroutine) rootShardName(st *state) (string, error) {
 	pm := st.platformMesh
 	engaged := s.registry.ClustersFor(pm.Name, components.RootShard)
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("expected exactly one root shard cluster, found %d", len(engaged))
 	}
-	return names.RootShard(pm.Name, pm.Spec.Topology.RootShard.Name, engaged[0].ClusterID) + "-server-ca", nil
+	return names.RootShard(pm.Name, pm.Spec.Topology.RootShard.Name, engaged[0].ClusterID), nil
+}
+
+// ensureRequestHeaderCA copies the front proxy's requestheader CA to a mapped
+// component's cluster.
+//
+// A mapped component is reached through the front proxy, which forwards the
+// caller's identity in headers signed by this CA. A component that authorises
+// on that identity has to verify it, and the CA is a kcp-operator secret named
+// after the root shard, so the deployer copies it rather than have every module
+// reconstruct that name.
+func (s *Subroutine) ensureRequestHeaderCA(ctx context.Context, st *state, inst module.Instance) error {
+	mod := st.resolved.Module
+
+	rootShard, err := s.rootShardName(st)
+	if err != nil {
+		return err
+	}
+	caName := rootShard + "-requestheader-client-ca"
+
+	src := &corev1.Secret{}
+	key := ctrlruntimeclient.ObjectKey{Namespace: mod.Namespace, Name: caName}
+	if err := s.client.Get(ctx, key, src); err != nil {
+		if apierrors.IsNotFound(err) {
+			return fmt.Errorf("%w: %s", errRequestHeaderCAPending, caName)
+		}
+		return fmt.Errorf("reading requestheader CA %q: %w", caName, err)
+	}
+
+	cl := inst.Cluster.Cluster.GetClient()
+	if err := sync.EnsureNamespace(ctx, cl, inst.Component.Namespace); err != nil {
+		return err
+	}
+	dst := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
+		Name:      module.RequestHeaderCASecretName(mod.Name, inst.Component.Name),
+		Namespace: inst.Component.Namespace,
+	}}
+	if _, err := controllerutil.CreateOrUpdate(ctx, cl, dst, func() error {
+		dst.Labels = module.ModuleSelector(mod, inst.Cluster.ClusterID)
+		dst.Type = src.Type
+		dst.Data = src.Data
+		return nil
+	}); err != nil {
+		return fmt.Errorf("copying requestheader CA %q: %w", dst.Name, err)
+	}
+	return nil
 }

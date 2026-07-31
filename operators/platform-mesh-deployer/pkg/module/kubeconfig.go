@@ -96,3 +96,13 @@ func ServingCertName(module, component, clusterID string) string {
 func ServingCertSecretName(module, component string) string {
 	return module + "-" + component + "-serving"
 }
+
+// RequestHeaderCASecretName is the name the front proxy's requestheader CA has
+// on the cluster of a mapped component.
+//
+// The CA itself is a kcp-operator secret named after the root shard, whose name
+// is an opaque hash. Copying it under a name the component derives from its own
+// keeps that convention inside the deployer.
+func RequestHeaderCASecretName(module, component string) string {
+	return module + "-" + component + "-requestheader-ca"
+}
