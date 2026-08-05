@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package exposure
+package platformmesh
 
 import (
 	"context"
@@ -82,7 +82,7 @@ func (gatewayAPIRenderer) teardown(ctx context.Context, workload ctrlruntimeclie
 	if err := workload.List(ctx, list,
 		ctrlruntimeclient.InNamespace(namespace),
 		ctrlruntimeclient.MatchingLabels{components.LabelPlatformMesh: pmName},
-		// Select positively on a label only this subroutine writes; modules label
+		// Select positively on a label only this step writes; modules label
 		// their own routes with the same platform mesh and would be deleted too.
 		ctrlruntimeclient.HasLabels{components.LabelComponent},
 	); err != nil {

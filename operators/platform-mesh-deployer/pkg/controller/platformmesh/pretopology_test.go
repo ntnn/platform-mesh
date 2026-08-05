@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package pretopology_test
+package platformmesh
 
 import (
 	"testing"
@@ -23,30 +23,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/pretopology"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
-
-func scheme(t *testing.T) *runtime.Scheme {
-	t.Helper()
-	s := runtime.NewScheme()
-	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
-	return s
-}
-
-func platformMesh() *pmdeployv1alpha1.PlatformMesh {
-	return &pmdeployv1alpha1.PlatformMesh{
-		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-	}
-}
 
 func moduleAt(name string, stage pmdeployv1alpha1.Stage, ready bool) *pmdeployv1alpha1.Module {
 	mod := &pmdeployv1alpha1.Module{
@@ -67,6 +50,7 @@ func moduleAt(name string, stage pmdeployv1alpha1.Stage, ready bool) *pmdeployv1
 }
 
 func TestPreTopologyGate(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		modules  []ctrlruntimeclient.Object
@@ -106,11 +90,11 @@ func TestPreTopologyGate(t *testing.T) {
 			objs := append([]ctrlruntimeclient.Object{pm}, tt.modules...)
 			cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(objs...).Build()
 
-			res, err := pretopology.New(cl).Process(t.Context(), pm)
+			cont, err := newReconciler(t, cl, nil, pm).awaitPreTopology(t.Context())
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantPass, res.IsContinue())
+			assert.Equal(t, tt.wantPass, cont)
 
-			cond := meta.FindStatusCondition(pm.Status.Conditions, pretopology.ConditionReady)
+			cond := meta.FindStatusCondition(pm.Status.Conditions, ConditionPreTopologyModulesReady)
 			require.NotNil(t, cond)
 			if tt.wantPass {
 				assert.Equal(t, metav1.ConditionTrue, cond.Status)
@@ -124,13 +108,14 @@ func TestPreTopologyGate(t *testing.T) {
 
 // A module of another PlatformMesh must not hold this one's topology back.
 func TestPreTopologyIgnoresOtherPlatformMeshes(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	other := moduleAt("etcd", pmdeployv1alpha1.StagePreTopology, false)
 	other.Spec.PlatformMeshRef.Name = "customer-b"
 
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, other).Build()
 
-	res, err := pretopology.New(cl).Process(t.Context(), pm)
+	cont, err := newReconciler(t, cl, nil, pm).awaitPreTopology(t.Context())
 	require.NoError(t, err)
-	assert.True(t, res.IsContinue())
+	assert.True(t, cont)
 }

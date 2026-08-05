@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package topology
+package platformmesh
 
 import (
 	"context"
@@ -30,20 +30,20 @@ import (
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
+func (r *reconciler) reconcileCacheServer(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
 	cacheServer := pm.Spec.Topology.CacheServer
 
 	desired := map[string]struct{}{}
 	if cacheServer != nil {
-		engaged := s.registry.ClustersFor(pm.Name, components.CacheServer)
+		engaged := r.opts.ClustersFor(pm.Name, components.CacheServer)
 		for _, cl := range engaged {
 			name := names.CacheServer(pm.Name, cacheServer.Name, cl.ClusterID)
-			spec, err := s.buildCacheServerSpec(ctx, pm, *cacheServer, cl.ClusterID)
+			spec, err := r.buildCacheServerSpec(ctx, pm, *cacheServer, cl.ClusterID)
 			if err != nil {
 				return err
 			}
 			cs := &operatorv1alpha1.CacheServer{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: pm.Namespace}}
-			if err := s.apply(ctx, pm, cs, func() {
+			if err := r.opts.Apply(ctx, pm, cs, func() {
 				cs.Labels = labels(pm.Name, components.CacheServer, cl.ClusterID)
 				cs.Spec = spec
 			}); err != nil {
@@ -52,13 +52,13 @@ func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployv1alp
 			desired[name] = struct{}{}
 		}
 	}
-	return s.teardown(ctx, pm, components.CacheServer, &operatorv1alpha1.CacheServerList{}, desired)
+	return r.opts.Teardown(ctx, pm, components.CacheServer, &operatorv1alpha1.CacheServerList{}, desired)
 }
 
 // cacheServerRef is the name of the CacheServer admin CR a shard references.
 // Federating several cache servers is not supported in v1alpha1, so exactly
 // one must be engaged.
-func (s *Subroutine) cacheServerRef(pm *pmdeployv1alpha1.PlatformMesh, ref string) (string, error) {
+func (r *reconciler) cacheServerRef(pm *pmdeployv1alpha1.PlatformMesh, ref string) (string, error) {
 	cacheServer := pm.Spec.Topology.CacheServer
 	if cacheServer == nil {
 		return "", fmt.Errorf("cacheServerRef %q set but no cache server defined", ref)
@@ -66,14 +66,14 @@ func (s *Subroutine) cacheServerRef(pm *pmdeployv1alpha1.PlatformMesh, ref strin
 	if cacheServer.Name != ref {
 		return "", fmt.Errorf("cacheServerRef %q does not match cache server %q", ref, cacheServer.Name)
 	}
-	engaged := s.registry.ClustersFor(pm.Name, components.CacheServer)
+	engaged := r.opts.ClustersFor(pm.Name, components.CacheServer)
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("cache server %q not ready", ref)
 	}
 	return names.CacheServer(pm.Name, cacheServer.Name, engaged[0].ClusterID), nil
 }
 
-func (s *Subroutine) buildCacheServerSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, cacheServer pmdeployv1alpha1.CacheServer, clusterID string) (operatorv1alpha1.CacheServerSpec, error) {
+func (r *reconciler) buildCacheServerSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, cacheServer pmdeployv1alpha1.CacheServer, clusterID string) (operatorv1alpha1.CacheServerSpec, error) {
 	name := names.CacheServer(pm.Name, cacheServer.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -83,7 +83,7 @@ func (s *Subroutine) buildCacheServerSpec(ctx context.Context, pm *pmdeployv1alp
 
 	var spec operatorv1alpha1.CacheServerSpec
 	tpl := &pmdeployv1alpha1.CacheServerTemplate{}
-	if err := s.resolveTemplate(ctx, pm, cacheServer.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+	if err := r.resolveTemplate(ctx, pm, cacheServer.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return spec, err
 	}
 

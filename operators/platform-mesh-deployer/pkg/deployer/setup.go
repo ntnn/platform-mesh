@@ -26,6 +26,7 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller/modulesetup"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller/platformmesh"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/templates"
@@ -86,7 +87,11 @@ func Setup(mgr mcmanager.Manager, cfg Config) error {
 	}
 
 	if cfg.controllerEnabled(ControllerConfig) {
-		if err := controller.NewPlatformMeshReconciler(mgr, registry, access).SetupWithManager(mgr); err != nil {
+		c, err := platformmesh.NewControllerFor(mgr, registry, access)
+		if err != nil {
+			return fmt.Errorf("building config controller: %w", err)
+		}
+		if err := c.SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up config controller: %w", err)
 		}
 		for _, r := range templates.NewReconcilers(mgr) {

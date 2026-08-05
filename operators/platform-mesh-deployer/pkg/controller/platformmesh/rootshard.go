@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package topology
+package platformmesh
 
 import (
 	"context"
@@ -33,10 +33,10 @@ import (
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
+func (r *reconciler) reconcileRootShard(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
 	group := pm.Spec.Topology.RootShard
 
-	engaged := s.registry.ClustersFor(pm.Name, components.RootShard)
+	engaged := r.opts.ClustersFor(pm.Name, components.RootShard)
 	if len(engaged) > 1 {
 		return fmt.Errorf("root shard must be a single cluster, got %d engaged", len(engaged))
 	}
@@ -46,24 +46,24 @@ func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployv1alpha
 	clusterID := engaged[0].ClusterID
 	name := names.RootShard(pm.Name, group.Name, clusterID)
 
-	spec, err := s.buildRootShardSpec(ctx, pm, group, clusterID)
+	spec, err := r.buildRootShardSpec(ctx, pm, group, clusterID)
 	if err != nil {
 		return err
 	}
 	rs := &operatorv1alpha1.RootShard{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: pm.Namespace}}
-	if err := s.apply(ctx, pm, rs, func() {
+	if err := r.opts.Apply(ctx, pm, rs, func() {
 		rs.Labels = labels(pm.Name, components.RootShard, clusterID)
 		rs.Spec = spec
 	}); err != nil {
 		return err
 	}
 
-	return s.teardown(ctx, pm, components.RootShard, &operatorv1alpha1.RootShardList{}, map[string]struct{}{name: {}})
+	return r.opts.Teardown(ctx, pm, components.RootShard, &operatorv1alpha1.RootShardList{}, map[string]struct{}{name: {}})
 }
 
 // rootShardRef is the name of the single root shard admin CR that shards reference.
-func (s *Subroutine) rootShardRef(pm *pmdeployv1alpha1.PlatformMesh) (string, error) {
-	engaged := s.registry.ClustersFor(pm.Name, components.RootShard)
+func (r *reconciler) rootShardRef(pm *pmdeployv1alpha1.PlatformMesh) (string, error) {
+	engaged := r.opts.ClustersFor(pm.Name, components.RootShard)
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("root shard not ready")
 	}
@@ -71,9 +71,9 @@ func (s *Subroutine) rootShardRef(pm *pmdeployv1alpha1.PlatformMesh) (string, er
 }
 
 // frontProxyExternal returns the front-proxy's hostname and port.
-func (s *Subroutine) frontProxyExternal(pm *pmdeployv1alpha1.PlatformMesh) (string, uint32, error) {
+func (r *reconciler) frontProxyExternal(pm *pmdeployv1alpha1.PlatformMesh) (string, uint32, error) {
 	fp := pm.Spec.Topology.FrontProxy
-	engaged := s.registry.ClustersFor(pm.Name, components.FrontProxy)
+	engaged := r.opts.ClustersFor(pm.Name, components.FrontProxy)
 	if len(engaged) == 0 {
 		return "", 0, fmt.Errorf("front proxy not ready")
 	}
@@ -88,7 +88,7 @@ func (s *Subroutine) frontProxyExternal(pm *pmdeployv1alpha1.PlatformMesh) (stri
 	return host, uint32(fp.Exposure.Port), nil
 }
 
-func (s *Subroutine) buildRootShardSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, group pmdeployv1alpha1.RootShard, clusterID string) (operatorv1alpha1.RootShardSpec, error) {
+func (r *reconciler) buildRootShardSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, group pmdeployv1alpha1.RootShard, clusterID string) (operatorv1alpha1.RootShardSpec, error) {
 	name := names.RootShard(pm.Name, group.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -99,7 +99,7 @@ func (s *Subroutine) buildRootShardSpec(ctx context.Context, pm *pmdeployv1alpha
 
 	var spec operatorv1alpha1.RootShardSpec
 	tpl := &pmdeployv1alpha1.RootShardTemplate{}
-	if err := s.resolveTemplate(ctx, pm, group.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+	if err := r.resolveTemplate(ctx, pm, group.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return spec, err
 	}
 
@@ -107,7 +107,7 @@ func (s *Subroutine) buildRootShardSpec(ctx context.Context, pm *pmdeployv1alpha
 		return spec, err
 	}
 
-	fpHost, fpPort, err := s.frontProxyExternal(pm)
+	fpHost, fpPort, err := r.frontProxyExternal(pm)
 	if err != nil {
 		return spec, fmt.Errorf("root shard %q: %w", name, err)
 	}
@@ -121,7 +121,7 @@ func (s *Subroutine) buildRootShardSpec(ctx context.Context, pm *pmdeployv1alpha
 	spec.ShardBaseURL = "https://" + net.JoinHostPort(host, strconv.Itoa(int(group.Exposure.Port)))
 
 	if group.CacheServerRef != "" {
-		ref, err := s.cacheServerRef(pm, group.CacheServerRef)
+		ref, err := r.cacheServerRef(pm, group.CacheServerRef)
 		if err != nil {
 			return spec, fmt.Errorf("root shard %q: %w", name, err)
 		}

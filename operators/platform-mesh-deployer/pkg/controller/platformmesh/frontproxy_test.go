@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package topology_test
+package platformmesh
 
 import (
 	"testing"
@@ -25,7 +25,6 @@ import (
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,6 +63,7 @@ func moduleWithMapping(name, component, path string) *pmdeployv1alpha1.Module {
 // The default "/services/" mapping is a prefix of every module path, so module
 // mappings must be ordered longest first.
 func TestFrontProxyMappingsSortedLongestFirst(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	objs := []ctrlruntimeclient.Object{
 		pm,
@@ -78,7 +78,7 @@ func TestFrontProxyMappingsSortedLongestFirst(t *testing.T) {
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
 
-	_, err := topology.New(cl, reg).Process(t.Context(), pm)
+	_, err := newReconciler(t, cl, reg, pm).reconcileTopology(t.Context())
 	require.NoError(t, err)
 
 	fp := &operatorv1alpha1.FrontProxy{}
@@ -94,6 +94,7 @@ func TestFrontProxyMappingsSortedLongestFirst(t *testing.T) {
 // Two modules claiming one path would both be written and the front proxy would
 // route by whichever won the sort.
 func TestFrontProxyRejectsConflictingMappings(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	objs := []ctrlruntimeclient.Object{
 		pm,
@@ -108,12 +109,13 @@ func TestFrontProxyRejectsConflictingMappings(t *testing.T) {
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
 
-	_, err := topology.New(cl, reg).Process(t.Context(), pm)
+	_, err := newReconciler(t, cl, reg, pm).reconcileTopology(t.Context())
 	require.ErrorContains(t, err, "claimed by both")
 }
 
 // A PlatformMesh without modules gets no additional mappings.
 func TestFrontProxyWithoutModules(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 
@@ -121,7 +123,7 @@ func TestFrontProxyWithoutModules(t *testing.T) {
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
 
-	_, err := topology.New(cl, reg).Process(t.Context(), pm)
+	_, err := newReconciler(t, cl, reg, pm).reconcileTopology(t.Context())
 	require.NoError(t, err)
 
 	fp := &operatorv1alpha1.FrontProxy{}

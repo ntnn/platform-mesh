@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package topology
+package platformmesh
 
 import (
 	"context"
@@ -28,34 +28,33 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
+func (r *reconciler) reconcileFrontProxy(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
 	frontProxy := pm.Spec.Topology.FrontProxy
-	rootRef, err := s.rootShardRef(pm)
+	rootRef, err := r.rootShardRef(pm)
 	if err != nil {
 		return err
 	}
 
-	mappings, err := s.moduleMappings(ctx, pm)
+	mappings, err := r.moduleMappings(ctx, pm)
 	if err != nil {
 		return err
 	}
 
-	engaged := s.registry.ClustersFor(pm.Name, components.FrontProxy)
+	engaged := r.opts.ClustersFor(pm.Name, components.FrontProxy)
 	desired := map[string]struct{}{}
 	for _, cl := range engaged {
 		name := names.FrontProxy(pm.Name, frontProxy.Name, cl.ClusterID)
-		spec, err := s.buildFrontProxySpec(ctx, pm, frontProxy, cl.ClusterID, rootRef)
+		spec, err := r.buildFrontProxySpec(ctx, pm, frontProxy, cl.ClusterID, rootRef)
 		if err != nil {
 			return err
 		}
 		spec.AdditionalPathMappings = append(spec.AdditionalPathMappings, mappings...)
 		fp := &operatorv1alpha1.FrontProxy{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: pm.Namespace}}
-		if err := s.apply(ctx, pm, fp, func() {
+		if err := r.opts.Apply(ctx, pm, fp, func() {
 			fp.Labels = labels(pm.Name, components.FrontProxy, cl.ClusterID)
 			fp.Spec = spec
 		}); err != nil {
@@ -63,10 +62,10 @@ func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployv1alph
 		}
 		desired[name] = struct{}{}
 	}
-	return s.teardown(ctx, pm, components.FrontProxy, &operatorv1alpha1.FrontProxyList{}, desired)
+	return r.opts.Teardown(ctx, pm, components.FrontProxy, &operatorv1alpha1.FrontProxyList{}, desired)
 }
 
-func (s *Subroutine) buildFrontProxySpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, frontProxy pmdeployv1alpha1.FrontProxy, clusterID, rootRef string) (operatorv1alpha1.FrontProxySpec, error) {
+func (r *reconciler) buildFrontProxySpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, frontProxy pmdeployv1alpha1.FrontProxy, clusterID, rootRef string) (operatorv1alpha1.FrontProxySpec, error) {
 	name := names.FrontProxy(pm.Name, frontProxy.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -76,7 +75,7 @@ func (s *Subroutine) buildFrontProxySpec(ctx context.Context, pm *pmdeployv1alph
 
 	var spec operatorv1alpha1.FrontProxySpec
 	tpl := &pmdeployv1alpha1.FrontProxyTemplate{}
-	if err := s.resolveTemplate(ctx, pm, frontProxy.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+	if err := r.resolveTemplate(ctx, pm, frontProxy.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return spec, err
 	}
 
@@ -107,9 +106,9 @@ const (
 //
 // Entries are sorted longest path first: the default "/services/" mapping is a
 // prefix of every module path, and kcp's matcher precedence is not verified.
-func (s *Subroutine) moduleMappings(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) ([]operatorv1alpha1.PathMappingEntry, error) {
-	list := &pmdeployv1alpha1.ModuleList{}
-	if err := s.client.List(ctx, list, ctrlruntimeclient.InNamespace(pm.Namespace)); err != nil {
+func (r *reconciler) moduleMappings(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) ([]operatorv1alpha1.PathMappingEntry, error) {
+	modules, err := r.opts.ListModules(ctx, pm.Namespace)
+	if err != nil {
 		return nil, fmt.Errorf("listing modules: %w", err)
 	}
 
@@ -117,8 +116,8 @@ func (s *Subroutine) moduleMappings(ctx context.Context, pm *pmdeployv1alpha1.Pl
 	// Two modules claiming the same path would both be written and the
 	// front proxy would route by whichever won the sort, so refuse instead.
 	claimed := map[string]string{}
-	for i := range list.Items {
-		mod := &list.Items[i]
+	for i := range modules {
+		mod := &modules[i]
 		if mod.Spec.PlatformMeshRef.Name != pm.Name {
 			continue
 		}

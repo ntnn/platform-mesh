@@ -14,8 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package exposure reconciles the ingress routes.
-package exposure
+package platformmesh
 
 import (
 	"context"
@@ -23,15 +22,12 @@ import (
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
-	"go.platform-mesh.io/subroutines"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-const Name = "ExposureSubroutine"
 
 // shardServicePort is the kcp-operator service port for root shards and shards.
 // The front proxy service port equals its external port instead.
@@ -68,14 +64,6 @@ func newRenderer(stack pmdeployv1alpha1.IngressStack) (stackRenderer, error) {
 	}
 }
 
-type Subroutine struct {
-	registry *clusters.Registry
-}
-
-func New(registry *clusters.Registry) *Subroutine { return &Subroutine{registry: registry} }
-
-func (s *Subroutine) GetName() string { return Name }
-
 // endpoint is one exposed kcp component reachable through the ingress stacks.
 type endpoint struct {
 	component  string
@@ -88,22 +76,25 @@ type endpoint struct {
 	exposure    pmdeployv1alpha1.Exposure
 }
 
-func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	pm := obj.(*pmdeployv1alpha1.PlatformMesh)
+// reconcileExposure publishes the topology through the configured ingress
+// stacks, writing routes on the workload clusters.
+func (r *reconciler) reconcileExposure(ctx context.Context) (bool, error) {
+	pm := r.pm
 
 	byName, byType, err := renderers(pm)
 	if err != nil {
-		return subroutines.Result{}, err
+		return r.exposureFailed(err)
 	}
 	if len(byName) == 0 {
-		return subroutines.OK(), nil
+		meta.SetStatusCondition(&pm.Status.Conditions, exposureReady(pm.Generation, "no ingress stack is configured"))
+		return true, nil
 	}
 
 	desired := map[string]struct{}{}
 	clients := map[string]ctrlruntimeclient.Client{}
 
 	for _, ep := range endpoints(pm) {
-		for _, cl := range s.registry.ClustersFor(pm.Name, ep.component) {
+		for _, cl := range r.opts.ClustersFor(pm.Name, ep.component) {
 			celCtx := celtemplate.Context{
 				PlatformMesh: pm.Name,
 				Component:    ep.component,
@@ -112,7 +103,7 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 			}
 			host, err := celtemplate.Eval(ep.exposure.HostnameTemplate, celCtx)
 			if err != nil {
-				return subroutines.Result{}, fmt.Errorf("%s hostname: %w", ep.component, err)
+				return r.exposureFailed(fmt.Errorf("%s hostname: %w", ep.component, err))
 			}
 			adminName := ep.adminName(pm.Name, cl.ClusterID)
 			port := ep.backendPort
@@ -142,7 +133,7 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 					component: ep.component,
 					clusterID: cl.ClusterID,
 				}); err != nil {
-					return subroutines.Result{}, err
+					return r.exposureFailed(err)
 				}
 				desired[name] = struct{}{}
 			}
@@ -152,11 +143,17 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 	for _, workload := range clients {
 		for _, rend := range byType {
 			if err := rend.teardown(ctx, workload, pm.Name, pm.Namespace, desired); err != nil {
-				return subroutines.Result{}, err
+				return r.exposureFailed(err)
 			}
 		}
 	}
-	return subroutines.OK(), nil
+	meta.SetStatusCondition(&pm.Status.Conditions, exposureReady(pm.Generation, "ingress routes applied"))
+	return true, nil
+}
+
+func (r *reconciler) exposureFailed(err error) (bool, error) {
+	meta.SetStatusCondition(&r.pm.Status.Conditions, exposureFailed(r.pm.Generation, err))
+	return false, err
 }
 
 // endpoints lists the exposed components of a PlatformMesh.

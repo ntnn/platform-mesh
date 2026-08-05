@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package exposure_test
+package platformmesh
 
 import (
 	"context"
@@ -28,42 +28,21 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/exposure"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/cluster"
 	gwapiv1alpha2 "sigs.k8s.io/gateway-api/apis/v1alpha2"
-	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 )
-
-// fakeCluster satisfies cluster.Cluster by only implementing GetClient, which
-// is all the exposure subroutine calls.
-type fakeCluster struct {
-	cluster.Cluster
-	client ctrlruntimeclient.Client
-}
-
-func (f *fakeCluster) GetClient() ctrlruntimeclient.Client { return f.client }
-
-func testScheme(t *testing.T) *runtime.Scheme {
-	t.Helper()
-	s := runtime.NewScheme()
-	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
-	require.NoError(t, gwapiv1alpha2.Install(s))
-	return s
-}
 
 func exposeString(host string, port int32) pmdeployv1alpha1.Exposure {
 	return pmdeployv1alpha1.Exposure{HostnameTemplate: host, Port: port}
 }
 
 func TestExposureCreatesRoutes(t *testing.T) {
-	s := testScheme(t)
+	t.Parallel()
+	s := scheme(t)
 	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
 		Spec: pmdeployv1alpha1.PlatformMeshSpec{
@@ -97,13 +76,19 @@ func TestExposureCreatesRoutes(t *testing.T) {
 	rootCl := fake.NewClientBuilder().WithScheme(s).Build()
 	shardCl := fake.NewClientBuilder().WithScheme(s).Build()
 	fpCl := fake.NewClientBuilder().WithScheme(s).Build()
-	engage(t, reg, "rootshard#customer-a--east", rootCl)
-	engage(t, reg, "shards-eu#customer-a--west", shardCl)
-	engage(t, reg, "frontproxy#customer-a--fpc", fpCl)
+	engageWithClient(t, reg, "rootshard#customer-a--east", rootCl)
+	engageWithClient(t, reg, "shards-eu#customer-a--west", shardCl)
+	engageWithClient(t, reg, "frontproxy#customer-a--fpc", fpCl)
 
-	sub := exposure.New(reg)
-	_, err := sub.Process(context.Background(), pm)
+	r := newReconciler(t, newClient(t), reg, pm)
+	_, err := r.reconcileExposure(context.Background())
 	require.NoError(t, err)
+
+	cond := meta.FindStatusCondition(pm.Status.Conditions, ConditionExposureReady)
+	require.NotNil(t, cond, "exposing the topology has to say so on the status")
+	assert.Equal(t, metav1.ConditionTrue, cond.Status)
+	assert.Equal(t, "Exposed", cond.Reason)
+	assert.Equal(t, pm.Generation, cond.ObservedGeneration)
 
 	root := getRoute(t, rootCl, "pm", names.RootShard("customer-a", "root", "east")+"-gw")
 	assert.Equal(t, []gwapiv1alpha2.Hostname{"root.east.sslip.io"}, root.Spec.Hostnames)
@@ -127,7 +112,8 @@ func TestExposureCreatesRoutes(t *testing.T) {
 }
 
 func TestExposureNoStacksNoRoutes(t *testing.T) {
-	s := testScheme(t)
+	t.Parallel()
+	s := scheme(t)
 	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
 		Spec: pmdeployv1alpha1.PlatformMeshSpec{
@@ -139,9 +125,9 @@ func TestExposureNoStacksNoRoutes(t *testing.T) {
 	}
 	reg := clusters.NewRegistry()
 	rootCl := fake.NewClientBuilder().WithScheme(s).Build()
-	engage(t, reg, "rootshard#customer-a--east", rootCl)
+	engageWithClient(t, reg, "rootshard#customer-a--east", rootCl)
 
-	_, err := exposure.New(reg).Process(context.Background(), pm)
+	_, err := newReconciler(t, newClient(t), reg, pm).reconcileExposure(context.Background())
 	require.NoError(t, err)
 
 	list := &gwapiv1alpha2.TLSRouteList{}
@@ -150,7 +136,8 @@ func TestExposureNoStacksNoRoutes(t *testing.T) {
 }
 
 func TestExposureTeardownStale(t *testing.T) {
-	s := testScheme(t)
+	t.Parallel()
+	s := scheme(t)
 	stale := &gwapiv1alpha2.TLSRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "fp-gone-gw",
@@ -179,9 +166,9 @@ func TestExposureTeardownStale(t *testing.T) {
 		},
 	}
 	reg := clusters.NewRegistry()
-	engage(t, reg, "frontproxy#customer-a--east", fpCl)
+	engageWithClient(t, reg, "frontproxy#customer-a--east", fpCl)
 
-	_, err := exposure.New(reg).Process(context.Background(), pm)
+	_, err := newReconciler(t, newClient(t), reg, pm).reconcileExposure(context.Background())
 	require.NoError(t, err)
 
 	// Stale route for the disengaged "gone" cluster removed, current one present.
@@ -193,7 +180,8 @@ func TestExposureTeardownStale(t *testing.T) {
 }
 
 func TestExposureTeardownKeepsModuleRoutes(t *testing.T) {
-	s := testScheme(t)
+	t.Parallel()
+	s := scheme(t)
 	owned := &gwapiv1alpha2.TLSRoute{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "acme-ui",
@@ -223,9 +211,9 @@ func TestExposureTeardownKeepsModuleRoutes(t *testing.T) {
 		},
 	}
 	reg := clusters.NewRegistry()
-	engage(t, reg, "frontproxy#customer-a--east", fpCl)
+	engageWithClient(t, reg, "frontproxy#customer-a--east", fpCl)
 
-	_, err := exposure.New(reg).Process(context.Background(), pm)
+	_, err := newReconciler(t, newClient(t), reg, pm).reconcileExposure(context.Background())
 	require.NoError(t, err)
 
 	route := &gwapiv1alpha2.TLSRoute{}
@@ -233,11 +221,6 @@ func TestExposureTeardownKeepsModuleRoutes(t *testing.T) {
 }
 
 func ptrExposure(e pmdeployv1alpha1.Exposure) *pmdeployv1alpha1.Exposure { return &e }
-
-func engage(t *testing.T, r *clusters.Registry, name string, cl ctrlruntimeclient.Client) {
-	t.Helper()
-	require.NoError(t, r.Engage(context.Background(), multicluster.ClusterName(name), &fakeCluster{client: cl}))
-}
 
 func getRoute(t *testing.T, cl ctrlruntimeclient.Client, ns, name string) *gwapiv1alpha2.TLSRoute {
 	t.Helper()

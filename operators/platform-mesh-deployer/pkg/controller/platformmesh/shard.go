@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package topology
+package platformmesh
 
 import (
 	"context"
@@ -33,8 +33,8 @@ import (
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
-	rootRef, err := s.rootShardRef(pm)
+func (r *reconciler) reconcileShards(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
+	rootRef, err := r.rootShardRef(pm)
 	if err != nil {
 		return err
 	}
@@ -43,17 +43,17 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployv1alpha1.P
 		group := pm.Spec.Topology.ShardGroups[i]
 		// "shards-<group>": the multi provider prefix carried by the group's engaged cluster names.
 		component := components.Shard(group.Name)
-		engaged := s.registry.ClustersFor(pm.Name, component)
+		engaged := r.opts.ClustersFor(pm.Name, component)
 
 		desired := map[string]struct{}{}
 		for _, cl := range engaged {
 			name := names.Shard(pm.Name, group.Name, cl.ClusterID)
-			spec, err := s.buildShardSpec(ctx, pm, group, cl.ClusterID, rootRef)
+			spec, err := r.buildShardSpec(ctx, pm, group, cl.ClusterID, rootRef)
 			if err != nil {
 				return err
 			}
 			sh := &operatorv1alpha1.Shard{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: pm.Namespace}}
-			if err := s.apply(ctx, pm, sh, func() {
+			if err := r.opts.Apply(ctx, pm, sh, func() {
 				sh.Labels = labels(pm.Name, component, cl.ClusterID)
 				sh.Spec = spec
 			}); err != nil {
@@ -61,14 +61,14 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployv1alpha1.P
 			}
 			desired[name] = struct{}{}
 		}
-		if err := s.teardown(ctx, pm, component, &operatorv1alpha1.ShardList{}, desired); err != nil {
+		if err := r.opts.Teardown(ctx, pm, component, &operatorv1alpha1.ShardList{}, desired); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (s *Subroutine) buildShardSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, group pmdeployv1alpha1.ShardGroup, clusterID, rootRef string) (operatorv1alpha1.ShardSpec, error) {
+func (r *reconciler) buildShardSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, group pmdeployv1alpha1.ShardGroup, clusterID, rootRef string) (operatorv1alpha1.ShardSpec, error) {
 	name := names.Shard(pm.Name, group.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -79,7 +79,7 @@ func (s *Subroutine) buildShardSpec(ctx context.Context, pm *pmdeployv1alpha1.Pl
 
 	var spec operatorv1alpha1.ShardSpec
 	tpl := &pmdeployv1alpha1.ShardTemplate{}
-	if err := s.resolveTemplate(ctx, pm, group.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
+	if err := r.resolveTemplate(ctx, pm, group.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return spec, err
 	}
 
@@ -98,7 +98,7 @@ func (s *Subroutine) buildShardSpec(ctx context.Context, pm *pmdeployv1alpha1.Pl
 	}
 
 	if group.CacheServerRef != "" {
-		ref, err := s.cacheServerRef(pm, group.CacheServerRef)
+		ref, err := r.cacheServerRef(pm, group.CacheServerRef)
 		if err != nil {
 			return spec, fmt.Errorf("shard %q: %w", name, err)
 		}

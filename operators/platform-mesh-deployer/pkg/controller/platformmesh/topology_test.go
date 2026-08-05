@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package topology_test
+package platformmesh
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,27 +26,15 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
 
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
-
-func scheme(t *testing.T) *runtime.Scheme {
-	t.Helper()
-	s := runtime.NewScheme()
-	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
-	require.NoError(t, operatorv1alpha1.AddToScheme(s))
-	return s
-}
 
 func platformMesh() *pmdeployv1alpha1.PlatformMesh {
 	return &pmdeployv1alpha1.PlatformMesh{
@@ -102,21 +89,23 @@ func shardTemplate() *pmdeployv1alpha1.ShardTemplate {
 	}
 }
 
-func engage(t *testing.T, r *clusters.Registry, name string) {
-	t.Helper()
-	require.NoError(t, r.Engage(context.Background(), multicluster.ClusterName(name), nil))
-}
-
 func TestReconcileRootShard(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
 
-	sub := topology.New(cl, reg)
-	_, err := sub.Process(t.Context(), pm)
+	r := newReconciler(t, cl, reg, pm)
+	_, err := r.reconcileTopology(t.Context())
 	require.NoError(t, err)
+
+	cond := meta.FindStatusCondition(pm.Status.Conditions, ConditionTopologyReady)
+	require.NotNil(t, cond, "a rendered topology has to say so on the status")
+	assert.Equal(t, metav1.ConditionTrue, cond.Status)
+	assert.Equal(t, "Rendered", cond.Reason)
+	assert.Equal(t, pm.Generation, cond.ObservedGeneration)
 
 	rs := &operatorv1alpha1.RootShard{}
 	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.RootShard("customer-a", "root", "east")}, rs))
@@ -134,18 +123,27 @@ func TestReconcileRootShard(t *testing.T) {
 }
 
 func TestReconcileRootShardRejectsSecondCluster(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "rootshard#customer-a--west")
 
-	sub := topology.New(cl, reg)
-	_, err := sub.Process(t.Context(), pm)
+	r := newReconciler(t, cl, reg, pm)
+	_, err := r.reconcileTopology(t.Context())
 	require.Error(t, err)
+
+	cond := meta.FindStatusCondition(pm.Status.Conditions, ConditionTopologyReady)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status)
+	assert.Equal(t, "RenderFailed", cond.Reason)
+	assert.Contains(t, cond.Message, "root shard must be a single cluster")
+	assert.Equal(t, pm.Generation, cond.ObservedGeneration)
 }
 
 func TestReconcileRootShardTeardownStale(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	stale := &operatorv1alpha1.RootShard{
 		ObjectMeta: metav1.ObjectMeta{
@@ -163,8 +161,8 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
 
-	sub := topology.New(cl, reg)
-	_, err := sub.Process(t.Context(), pm)
+	r := newReconciler(t, cl, reg, pm)
+	_, err := r.reconcileTopology(t.Context())
 	require.NoError(t, err)
 
 	require.NoError(t, cl.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: names.RootShard("customer-a", "root", "east")}, &operatorv1alpha1.RootShard{}))
@@ -173,6 +171,7 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 }
 
 func TestReconcileShard(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	pm.Spec.Topology.ShardGroups = []pmdeployv1alpha1.ShardGroup{{
 		Name:           "eu",
@@ -191,8 +190,8 @@ func TestReconcileShard(t *testing.T) {
 	engage(t, reg, "shards-eu#customer-a--west")
 	engage(t, reg, "cacheserver#customer-a--cache1")
 
-	sub := topology.New(cl, reg)
-	_, err := sub.Process(t.Context(), pm)
+	r := newReconciler(t, cl, reg, pm)
+	_, err := r.reconcileTopology(t.Context())
 	require.NoError(t, err)
 
 	sh := &operatorv1alpha1.Shard{}
@@ -210,6 +209,7 @@ func TestReconcileShard(t *testing.T) {
 }
 
 func TestReconcileFrontProxy(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	pm.Spec.Topology.FrontProxy = pmdeployv1alpha1.FrontProxy{
 		Name: "fp",
@@ -223,8 +223,8 @@ func TestReconcileFrontProxy(t *testing.T) {
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--west")
 
-	sub := topology.New(cl, reg)
-	_, err := sub.Process(t.Context(), pm)
+	r := newReconciler(t, cl, reg, pm)
+	_, err := r.reconcileTopology(t.Context())
 	require.NoError(t, err)
 
 	fp := &operatorv1alpha1.FrontProxy{}
@@ -238,6 +238,7 @@ func TestReconcileFrontProxy(t *testing.T) {
 }
 
 func TestReconcileCacheServer(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	pm.Spec.Topology.CacheServer = &pmdeployv1alpha1.CacheServer{
 		Name:        "global",
@@ -258,8 +259,8 @@ func TestReconcileCacheServer(t *testing.T) {
 	engage(t, reg, "frontproxy#customer-a--fp")
 	engage(t, reg, "cacheserver#customer-a--west")
 
-	sub := topology.New(cl, reg)
-	_, err := sub.Process(t.Context(), pm)
+	r := newReconciler(t, cl, reg, pm)
+	_, err := r.reconcileTopology(t.Context())
 	require.NoError(t, err)
 
 	cs := &operatorv1alpha1.CacheServer{}
@@ -272,6 +273,7 @@ func TestReconcileCacheServer(t *testing.T) {
 }
 
 func TestReconcileVirtualWorkspace(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh()
 	pm.Spec.Topology.RootShard.VirtualWorkspaces = pmdeployv1alpha1.VirtualWorkspaceSpec{
 		Mode: pmdeployv1alpha1.VirtualWorkspaceModeStandalone,
@@ -285,8 +287,8 @@ func TestReconcileVirtualWorkspace(t *testing.T) {
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
 
-	sub := topology.New(cl, reg)
-	_, err := sub.Process(t.Context(), pm)
+	r := newReconciler(t, cl, reg, pm)
+	_, err := r.reconcileTopology(t.Context())
 	require.NoError(t, err)
 
 	vw := &operatorv1alpha1.VirtualWorkspace{}
@@ -300,14 +302,15 @@ func TestReconcileVirtualWorkspace(t *testing.T) {
 }
 
 func TestReconcileVirtualWorkspaceEmbeddedSkipped(t *testing.T) {
+	t.Parallel()
 	pm := platformMesh() // root shard VirtualWorkspaces defaults to embedded (mode unset)
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, rootShardTemplate(), shardTemplate()).Build()
 	reg := clusters.NewRegistry()
 	engage(t, reg, "rootshard#customer-a--east")
 	engage(t, reg, "frontproxy#customer-a--fp")
 
-	sub := topology.New(cl, reg)
-	_, err := sub.Process(t.Context(), pm)
+	r := newReconciler(t, cl, reg, pm)
+	_, err := r.reconcileTopology(t.Context())
 	require.NoError(t, err)
 
 	list := &operatorv1alpha1.VirtualWorkspaceList{}
@@ -316,6 +319,7 @@ func TestReconcileVirtualWorkspaceEmbeddedSkipped(t *testing.T) {
 }
 
 func TestReconcileNamesAreUniquePerPlatformMesh(t *testing.T) {
+	t.Parallel()
 	a := platformMesh()
 	b := platformMesh()
 	b.Name = "customer-b"
@@ -327,9 +331,8 @@ func TestReconcileNamesAreUniquePerPlatformMesh(t *testing.T) {
 		engage(t, reg, multiclusterName("frontproxy", pm, "east"))
 	}
 
-	sub := topology.New(cl, reg)
 	for _, pm := range []*pmdeployv1alpha1.PlatformMesh{a, b} {
-		_, err := sub.Process(t.Context(), pm)
+		_, err := newReconciler(t, cl, reg, pm).reconcileTopology(t.Context())
 		require.NoError(t, err)
 	}
 
@@ -361,6 +364,7 @@ func multiclusterName(component, platformMesh, clusterID string) string {
 }
 
 func TestReconcileCacheServerRef(t *testing.T) {
+	t.Parallel()
 	shardGroup := func(ref string) []pmdeployv1alpha1.ShardGroup {
 		return []pmdeployv1alpha1.ShardGroup{{
 			Name:           "eu",
@@ -404,13 +408,14 @@ func TestReconcileCacheServerRef(t *testing.T) {
 				engage(t, reg, "cacheserver#customer-a--cache1")
 			}
 
-			_, err := topology.New(cl, reg).Process(t.Context(), pm)
+			_, err := newReconciler(t, cl, reg, pm).reconcileTopology(t.Context())
 			require.ErrorContains(t, err, tc.wantErr)
 		})
 	}
 }
 
 func TestReconcileTemplateRef(t *testing.T) {
+	t.Parallel()
 	t.Run("nil ref renders a zero spec", func(t *testing.T) {
 		pm := platformMesh()
 		pm.Spec.Topology.RootShard.TemplateRef = nil
@@ -420,7 +425,7 @@ func TestReconcileTemplateRef(t *testing.T) {
 		engage(t, reg, "rootshard#customer-a--east")
 		engage(t, reg, "frontproxy#customer-a--fp")
 
-		_, err := topology.New(cl, reg).Process(t.Context(), pm)
+		_, err := newReconciler(t, cl, reg, pm).reconcileTopology(t.Context())
 		require.NoError(t, err)
 
 		rs := &operatorv1alpha1.RootShard{}
@@ -438,7 +443,7 @@ func TestReconcileTemplateRef(t *testing.T) {
 		engage(t, reg, "rootshard#customer-a--east")
 		engage(t, reg, "frontproxy#customer-a--fp")
 
-		_, err := topology.New(cl, reg).Process(t.Context(), pm)
+		_, err := newReconciler(t, cl, reg, pm).reconcileTopology(t.Context())
 		require.ErrorContains(t, err, "template pm/gone")
 	})
 
@@ -459,9 +464,8 @@ func TestReconcileTemplateRef(t *testing.T) {
 			engage(t, reg, multiclusterName("frontproxy", pm, "east"))
 		}
 
-		sub := topology.New(cl, reg)
 		for _, pm := range []*pmdeployv1alpha1.PlatformMesh{a, b} {
-			_, err := sub.Process(t.Context(), pm)
+			_, err := newReconciler(t, cl, reg, pm).reconcileTopology(t.Context())
 			require.NoError(t, err)
 		}
 

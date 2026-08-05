@@ -28,7 +28,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -64,41 +63,6 @@ func names(reqs []reconcile.Request) []string {
 	return out
 }
 
-// The cluster registry signals by PlatformMesh name, so the mapping has to find
-// the object with that name rather than the signalling object itself.
-func TestEnqueuePlatformMeshByName(t *testing.T) {
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).
-		WithObjects(platformMesh("customer-a"), platformMesh("customer-b")).Build()
-
-	signal := &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: "customer-a"}}
-	got := enqueuePlatformMeshByName(cl)(t.Context(), signal)
-
-	require.Len(t, got, 1)
-	assert.Equal(t, "customer-a", got[0].Name)
-	assert.Equal(t, "pm", got[0].Namespace)
-}
-
-func TestEnqueuePlatformMeshByNameUnknown(t *testing.T) {
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(platformMesh("customer-a")).Build()
-
-	signal := &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: "nope"}}
-	assert.Empty(t, enqueuePlatformMeshByName(cl)(t.Context(), signal))
-}
-
-// A module publishes its front proxy mapping in its status, which the topology
-// merges, so the PlatformMesh has to be reconciled again.
-func TestEnqueuePlatformMeshOfModule(t *testing.T) {
-	got := enqueuePlatformMeshOfModule()(t.Context(), module("acme", "customer-a"))
-
-	require.Len(t, got, 1)
-	assert.Equal(t, "customer-a", got[0].Name)
-	assert.Equal(t, "pm", got[0].Namespace)
-}
-
-func TestEnqueuePlatformMeshOfModuleWrongType(t *testing.T) {
-	assert.Empty(t, enqueuePlatformMeshOfModule()(t.Context(), platformMesh("customer-a")))
-}
-
 // Modules of a PlatformMesh are reconciled when it changes, since they gate on
 // its topology.
 func TestEnqueueModulesOfPlatformMesh(t *testing.T) {
@@ -116,63 +80,5 @@ func TestEnqueueModulesOfPlatformMesh(t *testing.T) {
 func TestEnqueueWithFailingClient(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build()
 
-	signal := &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: "customer-a"}}
-	assert.Empty(t, enqueuePlatformMeshByName(cl)(t.Context(), signal))
 	assert.Empty(t, enqueueModulesOfPlatformMesh(cl)(t.Context(), platformMesh("customer-a")))
-}
-
-func ref(name, namespace string) *pmdeployv1alpha1.TemplateReference {
-	return &pmdeployv1alpha1.TemplateReference{Name: name, Namespace: namespace}
-}
-
-func templatedPlatformMesh(name, namespace string) *pmdeployv1alpha1.PlatformMesh {
-	return &pmdeployv1alpha1.PlatformMesh{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec: pmdeployv1alpha1.PlatformMeshSpec{
-			Topology: pmdeployv1alpha1.Topology{
-				RootShard: pmdeployv1alpha1.RootShard{
-					Name:        "root",
-					TemplateRef: ref("root", ""),
-					VirtualWorkspaces: pmdeployv1alpha1.VirtualWorkspaceSpec{
-						TemplateRef: ref("vw", "shared"),
-					},
-				},
-				FrontProxy: pmdeployv1alpha1.FrontProxy{
-					Name:        "fp",
-					TemplateRef: ref("fp", ""),
-				},
-				CacheServer: &pmdeployv1alpha1.CacheServer{
-					Name:        "cache",
-					TemplateRef: ref("cache", ""),
-				},
-				ShardGroups: []pmdeployv1alpha1.ShardGroup{{
-					Name:        "default",
-					TemplateRef: ref("default", ""),
-					VirtualWorkspaces: pmdeployv1alpha1.VirtualWorkspaceSpec{
-						TemplateRef: ref("vw", "shared"),
-					},
-				}},
-			},
-		},
-	}
-}
-
-func TestEnqueuePlatformMeshesUsingTemplate(t *testing.T) {
-	// Two installations in different namespaces sharing one template.
-	a := templatedPlatformMesh("customer-a", "pm-a")
-	b := templatedPlatformMesh("customer-b", "pm-b")
-	unrelated := templatedPlatformMesh("customer-c", "pm-c")
-	unrelated.Spec.Topology.RootShard.VirtualWorkspaces.TemplateRef = ref("other", "shared")
-	unrelated.Spec.Topology.ShardGroups[0].VirtualWorkspaces.TemplateRef = nil
-
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(a, b, unrelated).Build()
-	shared := &pmdeployv1alpha1.VirtualWorkspaceTemplate{
-		ObjectMeta: metav1.ObjectMeta{Name: "vw", Namespace: "shared"},
-	}
-
-	got := enqueuePlatformMeshesUsingTemplate(cl, "VirtualWorkspaceTemplate")(t.Context(), shared)
-	assert.ElementsMatch(t, []reconcile.Request{
-		{NamespacedName: ctrlruntimeclient.ObjectKey{Namespace: "pm-a", Name: "customer-a"}},
-		{NamespacedName: ctrlruntimeclient.ObjectKey{Namespace: "pm-b", Name: "customer-b"}},
-	}, got)
 }
