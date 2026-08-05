@@ -22,7 +22,7 @@ import (
 	"net"
 	"strconv"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
@@ -33,7 +33,7 @@ import (
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) error {
+func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
 	rootRef, err := s.rootShardRef(pm)
 	if err != nil {
 		return err
@@ -68,7 +68,7 @@ func (s *Subroutine) reconcileShards(ctx context.Context, pm *pmdeployerv1alpha1
 	return nil
 }
 
-func (s *Subroutine) buildShardSpec(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.ShardGroup, clusterID, rootRef string) (operatorv1alpha1.ShardSpec, error) {
+func (s *Subroutine) buildShardSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, group pmdeployv1alpha1.ShardGroup, clusterID, rootRef string) (operatorv1alpha1.ShardSpec, error) {
 	name := names.Shard(pm.Name, group.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -78,7 +78,7 @@ func (s *Subroutine) buildShardSpec(ctx context.Context, pm *pmdeployerv1alpha1.
 	}
 
 	var spec operatorv1alpha1.ShardSpec
-	tpl := &pmdeployerv1alpha1.ShardTemplate{}
+	tpl := &pmdeployv1alpha1.ShardTemplate{}
 	if err := s.resolveTemplate(ctx, pm, group.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return spec, err
 	}

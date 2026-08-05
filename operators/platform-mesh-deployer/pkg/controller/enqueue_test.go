@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,29 +36,29 @@ func scheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployerv1alpha1.AddToScheme(s))
+	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
 	return s
 }
 
-func platformMesh(name string) *pmdeployerv1alpha1.PlatformMesh {
-	return &pmdeployerv1alpha1.PlatformMesh{
+func platformMesh(name string) *pmdeployv1alpha1.PlatformMesh {
+	return &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "pm"},
 	}
 }
 
-func module(name, platformMesh string) *pmdeployerv1alpha1.Module {
-	return &pmdeployerv1alpha1.Module{
+func module(name, platformMesh string) *pmdeployv1alpha1.Module {
+	return &pmdeployv1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.ModuleSpec{
+		Spec: pmdeployv1alpha1.ModuleSpec{
 			PlatformMeshRef: corev1.LocalObjectReference{Name: platformMesh},
 		},
 	}
 }
 
-func moduleSetup(name, platformMesh string) *pmdeployerv1alpha1.ModuleSetup {
-	return &pmdeployerv1alpha1.ModuleSetup{
+func moduleSetup(name, platformMesh string) *pmdeployv1alpha1.ModuleSetup {
+	return &pmdeployv1alpha1.ModuleSetup{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.ModuleSetupSpec{
+		Spec: pmdeployv1alpha1.ModuleSetupSpec{
 			PlatformMeshRef: corev1.LocalObjectReference{Name: platformMesh},
 		},
 	}

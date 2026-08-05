@@ -20,7 +20,7 @@ package controller
 import (
 	"context"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/exposure"
@@ -66,7 +66,7 @@ func NewPlatformMeshReconciler(mgr mcmanager.Manager, registry *clusters.Registr
 	}
 	subs = append(subs, ready.New())
 	lc := lifecycle.New(mgr, platformMeshReconcilerName, func() ctrlruntimeclient.Object {
-		return &pmdeployerv1alpha1.PlatformMesh{}
+		return &pmdeployv1alpha1.PlatformMesh{}
 	}, subs...).WithConditions(conditions.NewManager())
 
 	return &PlatformMeshReconciler{lifecycle: lc, registry: registry}
@@ -75,14 +75,14 @@ func NewPlatformMeshReconciler(mgr mcmanager.Manager, registry *clusters.Registr
 func (r *PlatformMeshReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 	local := mgr.GetLocalManager()
 	b := ctrl.NewControllerManagedBy(local).
-		For(&pmdeployerv1alpha1.PlatformMesh{}).
+		For(&pmdeployv1alpha1.PlatformMesh{}).
 		WatchesRawSource(source.Channel(
 			r.registry.Events(),
 			handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshByName(local.GetClient())),
 		)).
 		// A module publishes its resolved front proxy mapping in its
 		// status, which the topology merges into the FrontProxy.
-		Watches(&pmdeployerv1alpha1.Module{}, handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshOfModule()))
+		Watches(&pmdeployv1alpha1.Module{}, handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshOfModule()))
 
 	for _, tk := range templateKinds {
 		b = b.Watches(tk.obj(), handler.EnqueueRequestsFromMapFunc(
@@ -115,7 +115,7 @@ func enqueuePlatformMeshesUsingTemplate(c ctrlruntimeclient.Client, kind string)
 // enqueuePlatformMeshOfModule maps a Module to the PlatformMesh it belongs to.
 func enqueuePlatformMeshOfModule() handler.MapFunc {
 	return func(_ context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
-		mod, ok := obj.(*pmdeployerv1alpha1.Module)
+		mod, ok := obj.(*pmdeployv1alpha1.Module)
 		if !ok {
 			return nil
 		}
@@ -132,7 +132,7 @@ func enqueuePlatformMeshOfModule() handler.MapFunc {
 func enqueuePlatformMeshByName(c ctrlruntimeclient.Client) handler.MapFunc {
 	return func(ctx context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
 		name := obj.GetName()
-		list := &pmdeployerv1alpha1.PlatformMeshList{}
+		list := &pmdeployv1alpha1.PlatformMeshList{}
 		if err := c.List(ctx, list); err != nil {
 			return nil
 		}

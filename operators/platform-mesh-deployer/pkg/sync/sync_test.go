@@ -132,7 +132,7 @@ func TestApply(t *testing.T) {
 }
 
 func TestPrune(t *testing.T) {
-	owned := map[string]string{"deployer.platform-mesh.io/module": "acme"}
+	owned := map[string]string{"deploy.platform-mesh.io/module": "acme"}
 	foreign := map[string]string{"other": "true"}
 
 	keep := configMap("keep", "ns", owned)
@@ -160,7 +160,7 @@ func TestPrune(t *testing.T) {
 }
 
 func TestPruneEmptyKeepDeletesAll(t *testing.T) {
-	owned := map[string]string{"deployer.platform-mesh.io/module": "acme"}
+	owned := map[string]string{"deploy.platform-mesh.io/module": "acme"}
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).
 		WithObjects(configMap("a", "ns", owned), configMap("b", "ns", owned)).Build()
 

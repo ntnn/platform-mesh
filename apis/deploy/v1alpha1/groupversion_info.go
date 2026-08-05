@@ -14,9 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package v1alpha1 contains API Schema definitions for the deployer v1alpha1 API group
+// Package v1alpha1 contains API Schema definitions for the deploy v1alpha1 API group
 // +kubebuilder:object:generate=true
-// +groupName=deployer.platform-mesh.io
+// +groupName=deploy.platform-mesh.io
 package v1alpha1
 
 import (
@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	GroupName    = "deployer.platform-mesh.io"
+	GroupName    = "deploy.platform-mesh.io"
 	GroupVersion = "v1alpha1"
 )
 

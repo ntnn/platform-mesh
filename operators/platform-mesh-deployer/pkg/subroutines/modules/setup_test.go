@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/modules"
 
@@ -37,9 +37,9 @@ import (
 // manifests into the parent.
 func TestProcessWritesModuleSetupPerWorkspace(t *testing.T) {
 	mod := testModule()
-	mod.Spec.Workspaces = []pmdeployerv1alpha1.ModuleWorkspace{
-		{Name: "", Content: []pmdeployerv1alpha1.ResourceRef{{Name: "apiexports"}}},
-		{Name: "validation", Content: []pmdeployerv1alpha1.ResourceRef{{Name: "validation-schemas"}}},
+	mod.Spec.Workspaces = []pmdeployv1alpha1.ModuleWorkspace{
+		{Name: "", Content: []pmdeployv1alpha1.ResourceRef{{Name: "apiexports"}}},
+		{Name: "validation", Content: []pmdeployv1alpha1.ResourceRef{{Name: "validation-schemas"}}},
 	}
 
 	workload := fake.NewClientBuilder().WithScheme(scheme(t)).Build()
@@ -54,7 +54,7 @@ func TestProcessWritesModuleSetupPerWorkspace(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, res.IsContinue(), "deploy waits until the setup is ready")
 
-	setup := &pmdeployerv1alpha1.ModuleSetup{}
+	setup := &pmdeployv1alpha1.ModuleSetup{}
 	require.NoError(t, local.Get(t.Context(),
 		ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "acme"}, setup))
 
@@ -87,7 +87,7 @@ func TestProcessWithoutWorkspacesWritesNoSetup(t *testing.T) {
 	require.NoError(t, err)
 
 	err = local.Get(t.Context(),
-		ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "acme"}, &pmdeployerv1alpha1.ModuleSetup{})
+		ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "acme"}, &pmdeployv1alpha1.ModuleSetup{})
 	assert.Error(t, err)
 }
 

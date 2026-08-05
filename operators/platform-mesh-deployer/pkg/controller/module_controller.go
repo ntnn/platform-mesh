@@ -19,7 +19,7 @@ package controller
 import (
 	"context"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/modules"
@@ -55,7 +55,7 @@ func NewModuleReconciler(mgr mcmanager.Manager, registry *clusters.Registry, res
 		mgr,
 		moduleReconcilerName,
 		func() ctrlruntimeclient.Object {
-			return &pmdeployerv1alpha1.Module{}
+			return &pmdeployv1alpha1.Module{}
 		},
 		subs...,
 	).WithConditions(conditions.NewManager())
@@ -66,9 +66,9 @@ func NewModuleReconciler(mgr mcmanager.Manager, registry *clusters.Registry, res
 func (r *ModuleReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 	local := mgr.GetLocalManager()
 	return ctrl.NewControllerManagedBy(local).
-		For(&pmdeployerv1alpha1.Module{}).
+		For(&pmdeployv1alpha1.Module{}).
 		// A Module is gated on its PlatformMesh's topology and on the clusters engaged for it, so both drive a reconcile.
-		Watches(&pmdeployerv1alpha1.PlatformMesh{}, handler.EnqueueRequestsFromMapFunc(enqueueModulesOfPlatformMesh(local.GetClient()))).
+		Watches(&pmdeployv1alpha1.PlatformMesh{}, handler.EnqueueRequestsFromMapFunc(enqueueModulesOfPlatformMesh(local.GetClient()))).
 		WatchesRawSource(source.Channel(
 			r.registry.Events(),
 			handler.EnqueueRequestsFromMapFunc(enqueueModulesOfPlatformMesh(local.GetClient())),
@@ -82,7 +82,7 @@ func (r *ModuleReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 // signal carrying its name, to the Modules installed into it.
 func enqueueModulesOfPlatformMesh(c ctrlruntimeclient.Client) handler.MapFunc {
 	return func(ctx context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
-		list := &pmdeployerv1alpha1.ModuleList{}
+		list := &pmdeployv1alpha1.ModuleList{}
 		if err := c.List(ctx, list); err != nil {
 			return nil
 		}

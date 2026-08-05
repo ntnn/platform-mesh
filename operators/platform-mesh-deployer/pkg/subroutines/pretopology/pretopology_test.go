@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/pretopology"
 
 	corev1 "k8s.io/api/core/v1"
@@ -38,20 +38,20 @@ func scheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployerv1alpha1.AddToScheme(s))
+	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
 	return s
 }
 
-func platformMesh() *pmdeployerv1alpha1.PlatformMesh {
-	return &pmdeployerv1alpha1.PlatformMesh{
+func platformMesh() *pmdeployv1alpha1.PlatformMesh {
+	return &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
 	}
 }
 
-func moduleAt(name string, stage pmdeployerv1alpha1.Stage, ready bool) *pmdeployerv1alpha1.Module {
-	mod := &pmdeployerv1alpha1.Module{
+func moduleAt(name string, stage pmdeployv1alpha1.Stage, ready bool) *pmdeployv1alpha1.Module {
+	mod := &pmdeployv1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.ModuleSpec{
+		Spec: pmdeployv1alpha1.ModuleSpec{
 			PlatformMeshRef: corev1.LocalObjectReference{Name: "customer-a"},
 			Stage:           stage,
 			Component:       "github.com/platform-mesh/" + name,
@@ -78,25 +78,25 @@ func TestPreTopologyGate(t *testing.T) {
 		},
 		{
 			name:     "pre-topology module ready",
-			modules:  []ctrlruntimeclient.Object{moduleAt("etcd", pmdeployerv1alpha1.StagePreTopology, true)},
+			modules:  []ctrlruntimeclient.Object{moduleAt("etcd", pmdeployv1alpha1.StagePreTopology, true)},
 			wantPass: true,
 		},
 		{
 			name:     "pre-topology module not ready",
-			modules:  []ctrlruntimeclient.Object{moduleAt("etcd", pmdeployerv1alpha1.StagePreTopology, false)},
+			modules:  []ctrlruntimeclient.Object{moduleAt("etcd", pmdeployv1alpha1.StagePreTopology, false)},
 			wantPass: false,
 		},
 		{
 			name: "one of several pre-topology modules not ready",
 			modules: []ctrlruntimeclient.Object{
-				moduleAt("etcd", pmdeployerv1alpha1.StagePreTopology, true),
-				moduleAt("gateway", pmdeployerv1alpha1.StagePreTopology, false),
+				moduleAt("etcd", pmdeployv1alpha1.StagePreTopology, true),
+				moduleAt("gateway", pmdeployv1alpha1.StagePreTopology, false),
 			},
 			wantPass: false,
 		},
 		{
 			name:     "post-topology module is not a gate",
-			modules:  []ctrlruntimeclient.Object{moduleAt("acme", pmdeployerv1alpha1.StagePostTopology, false)},
+			modules:  []ctrlruntimeclient.Object{moduleAt("acme", pmdeployv1alpha1.StagePostTopology, false)},
 			wantPass: true,
 		},
 	}
@@ -125,7 +125,7 @@ func TestPreTopologyGate(t *testing.T) {
 // A module of another PlatformMesh must not hold this one's topology back.
 func TestPreTopologyIgnoresOtherPlatformMeshes(t *testing.T) {
 	pm := platformMesh()
-	other := moduleAt("etcd", pmdeployerv1alpha1.StagePreTopology, false)
+	other := moduleAt("etcd", pmdeployv1alpha1.StagePreTopology, false)
 	other.Spec.PlatformMeshRef.Name = "customer-b"
 
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(pm, other).Build()

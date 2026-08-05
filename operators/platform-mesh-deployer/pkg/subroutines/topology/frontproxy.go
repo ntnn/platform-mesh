@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"sort"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
@@ -33,7 +33,7 @@ import (
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) error {
+func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
 	frontProxy := pm.Spec.Topology.FrontProxy
 	rootRef, err := s.rootShardRef(pm)
 	if err != nil {
@@ -66,7 +66,7 @@ func (s *Subroutine) reconcileFrontProxy(ctx context.Context, pm *pmdeployerv1al
 	return s.teardown(ctx, pm, components.FrontProxy, &operatorv1alpha1.FrontProxyList{}, desired)
 }
 
-func (s *Subroutine) buildFrontProxySpec(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, frontProxy pmdeployerv1alpha1.FrontProxy, clusterID, rootRef string) (operatorv1alpha1.FrontProxySpec, error) {
+func (s *Subroutine) buildFrontProxySpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, frontProxy pmdeployv1alpha1.FrontProxy, clusterID, rootRef string) (operatorv1alpha1.FrontProxySpec, error) {
 	name := names.FrontProxy(pm.Name, frontProxy.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -75,7 +75,7 @@ func (s *Subroutine) buildFrontProxySpec(ctx context.Context, pm *pmdeployerv1al
 	}
 
 	var spec operatorv1alpha1.FrontProxySpec
-	tpl := &pmdeployerv1alpha1.FrontProxyTemplate{}
+	tpl := &pmdeployv1alpha1.FrontProxyTemplate{}
 	if err := s.resolveTemplate(ctx, pm, frontProxy.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return spec, err
 	}
@@ -107,8 +107,8 @@ const (
 //
 // Entries are sorted longest path first: the default "/services/" mapping is a
 // prefix of every module path, and kcp's matcher precedence is not verified.
-func (s *Subroutine) moduleMappings(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) ([]operatorv1alpha1.PathMappingEntry, error) {
-	list := &pmdeployerv1alpha1.ModuleList{}
+func (s *Subroutine) moduleMappings(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) ([]operatorv1alpha1.PathMappingEntry, error) {
+	list := &pmdeployv1alpha1.ModuleList{}
 	if err := s.client.List(ctx, list, ctrlruntimeclient.InNamespace(pm.Namespace)); err != nil {
 		return nil, fmt.Errorf("listing modules: %w", err)
 	}

@@ -26,29 +26,29 @@ import (
 
 	descriptorruntime "ocm.software/open-component-model/bindings/go/descriptor/runtime"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 )
 
 // Labels set on every object the deployer applies for a module, used for
 // teardown and for finding an instance's objects again.
 const (
-	LabelPlatformMesh = "deployer.platform-mesh.io/platform-mesh"
-	LabelModule       = "deployer.platform-mesh.io/module"
-	LabelComponent    = "deployer.platform-mesh.io/module-component"
-	LabelCluster      = "deployer.platform-mesh.io/cluster"
+	LabelPlatformMesh = "deploy.platform-mesh.io/platform-mesh"
+	LabelModule       = "deploy.platform-mesh.io/module"
+	LabelComponent    = "deploy.platform-mesh.io/module-component"
+	LabelCluster      = "deploy.platform-mesh.io/cluster"
 )
 
 // Resolved carries a Module together with its resolved component version, so
 // the subroutines after resolve do not each re-fetch it.
 type Resolved struct {
-	Module *pmdeployerv1alpha1.Module
+	Module *pmdeployv1alpha1.Module
 	CV     ocm.ComponentVersion
 }
 
 // Resolve fetches the module's component version and checks that every
 // component's payload resource exists in it.
-func Resolve(ctx context.Context, resolver ocm.Resolver, mod *pmdeployerv1alpha1.Module, fallback *pmdeployerv1alpha1.OCMRepository) (*Resolved, error) {
+func Resolve(ctx context.Context, resolver ocm.Resolver, mod *pmdeployv1alpha1.Module, fallback *pmdeployv1alpha1.OCMRepository) (*Resolved, error) {
 	repo := fallback
 	if mod.Spec.OCM != nil {
 		repo = mod.Spec.OCM

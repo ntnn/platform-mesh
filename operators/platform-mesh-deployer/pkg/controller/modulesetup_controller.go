@@ -19,7 +19,7 @@ package controller
 import (
 	"context"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	pmocm "go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/provisioner"
@@ -50,7 +50,7 @@ func NewModuleSetupReconciler(mgr mcmanager.Manager, access *kcp.Access, resolve
 		provisioner.New(local, access, resolver),
 	}
 	lc := lifecycle.New(mgr, moduleSetupReconcilerName, func() ctrlruntimeclient.Object {
-		return &pmdeployerv1alpha1.ModuleSetup{}
+		return &pmdeployv1alpha1.ModuleSetup{}
 	}, subs...).WithConditions(conditions.NewManager())
 
 	return &ModuleSetupReconciler{lifecycle: lc}
@@ -59,9 +59,9 @@ func NewModuleSetupReconciler(mgr mcmanager.Manager, access *kcp.Access, resolve
 func (r *ModuleSetupReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 	local := mgr.GetLocalManager()
 	return ctrl.NewControllerManagedBy(local).
-		For(&pmdeployerv1alpha1.ModuleSetup{}).
+		For(&pmdeployv1alpha1.ModuleSetup{}).
 		// The kcp side can only start once the root structure exists.
-		Watches(&pmdeployerv1alpha1.PlatformMesh{}, handler.EnqueueRequestsFromMapFunc(enqueueSetupsOfPlatformMesh(local.GetClient()))).
+		Watches(&pmdeployv1alpha1.PlatformMesh{}, handler.EnqueueRequestsFromMapFunc(enqueueSetupsOfPlatformMesh(local.GetClient()))).
 		Named(moduleSetupReconcilerName).
 		WithOptions(controller.Options{SkipNameValidation: ptr.To(true)}).
 		Complete(r)
@@ -69,7 +69,7 @@ func (r *ModuleSetupReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 
 func enqueueSetupsOfPlatformMesh(c ctrlruntimeclient.Client) handler.MapFunc {
 	return func(ctx context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
-		list := &pmdeployerv1alpha1.ModuleSetupList{}
+		list := &pmdeployv1alpha1.ModuleSetupList{}
 		if err := c.List(ctx, list); err != nil {
 			return nil
 		}

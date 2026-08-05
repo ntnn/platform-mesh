@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/rootstructure"
@@ -44,7 +44,7 @@ func scheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployerv1alpha1.AddToScheme(s))
+	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
 	require.NoError(t, operatorv1alpha1.AddToScheme(s))
 	require.NoError(t, kcptenancyv1alpha1.AddToScheme(s))
 	require.NoError(t, kcpcorev1alpha1.AddToScheme(s))
@@ -53,12 +53,12 @@ func scheme(t *testing.T) *runtime.Scheme {
 
 // platformMesh returns a PlatformMesh whose topology subroutine has or has not
 // finished, which is what gates the kcp side.
-func platformMesh(topologyDone bool) *pmdeployerv1alpha1.PlatformMesh {
-	pm := &pmdeployerv1alpha1.PlatformMesh{
+func platformMesh(topologyDone bool) *pmdeployv1alpha1.PlatformMesh {
+	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
-			Topology: pmdeployerv1alpha1.Topology{
-				FrontProxy: pmdeployerv1alpha1.FrontProxy{Name: "fp"},
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
+			Topology: pmdeployv1alpha1.Topology{
+				FrontProxy: pmdeployv1alpha1.FrontProxy{Name: "fp"},
 			},
 		},
 	}

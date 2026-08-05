@@ -19,14 +19,14 @@ package module
 import (
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 )
 
 // Instance is one component placed on one cluster.
 type Instance struct {
-	Component pmdeployerv1alpha1.ModuleComponent
+	Component pmdeployv1alpha1.ModuleComponent
 	Cluster   clusters.Cluster
 	// ShardGroup is set for per-shard instances, empty otherwise.
 	ShardGroup string
@@ -34,27 +34,27 @@ type Instance struct {
 
 // FanOut resolves each component's placement into the clusters it is deployed to.
 // A component whose placement has no engaged cluster yields no instances, which is not an error: the cluster may be engaged later.
-func FanOut(registry *clusters.Registry, mod *pmdeployerv1alpha1.Module) ([]Instance, error) {
+func FanOut(registry *clusters.Registry, mod *pmdeployv1alpha1.Module) ([]Instance, error) {
 	pm := mod.Spec.PlatformMeshRef.Name
 
 	var out []Instance
 	for _, component := range mod.Spec.Components {
 		switch component.Placement {
-		case pmdeployerv1alpha1.PlacementRootShard:
+		case pmdeployv1alpha1.PlacementRootShard:
 			for _, c := range registry.ClustersFor(pm, components.RootShard) {
 				out = append(out, Instance{Component: component, Cluster: c})
 			}
-		case pmdeployerv1alpha1.PlacementPerFrontProxy:
+		case pmdeployv1alpha1.PlacementPerFrontProxy:
 			for _, c := range registry.ClustersFor(pm, components.FrontProxy) {
 				out = append(out, Instance{Component: component, Cluster: c})
 			}
-		case pmdeployerv1alpha1.PlacementPerShard:
+		case pmdeployv1alpha1.PlacementPerShard:
 			for _, group := range registry.ShardGroups(pm) {
 				for _, c := range registry.ClustersFor(pm, components.Shard(group)) {
 					out = append(out, Instance{Component: component, Cluster: c, ShardGroup: group})
 				}
 			}
-		case pmdeployerv1alpha1.PlacementAllClusters:
+		case pmdeployv1alpha1.PlacementAllClusters:
 			for _, c := range registry.AllClustersFor(pm) {
 				out = append(out, Instance{Component: component, Cluster: c})
 			}

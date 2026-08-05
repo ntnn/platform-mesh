@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 
 	corev1 "k8s.io/api/core/v1"
@@ -34,29 +34,29 @@ import (
 func TestProcessRejectsUnsatisfiableReferences(t *testing.T) {
 	tests := []struct {
 		name    string
-		mutate  func(*pmdeployerv1alpha1.Module)
+		mutate  func(*pmdeployv1alpha1.Module)
 		wantErr string
 	}{
 		{
 			name: "kubeconfig references an undeclared workspace",
-			mutate: func(m *pmdeployerv1alpha1.Module) {
-				m.Spec.Workspaces = []pmdeployerv1alpha1.ModuleWorkspace{{Name: ""}}
-				m.Spec.Kubeconfigs = []pmdeployerv1alpha1.ModuleKubeconfig{{
-					Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy, Workspace: "nope",
+			mutate: func(m *pmdeployv1alpha1.Module) {
+				m.Spec.Workspaces = []pmdeployv1alpha1.ModuleWorkspace{{Name: ""}}
+				m.Spec.Kubeconfigs = []pmdeployv1alpha1.ModuleKubeconfig{{
+					Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy, Workspace: "nope",
 				}}
 			},
 			wantErr: "which the module does not declare",
 		},
 		{
 			name: "component references an undeclared kubeconfig",
-			mutate: func(m *pmdeployerv1alpha1.Module) {
+			mutate: func(m *pmdeployv1alpha1.Module) {
 				m.Spec.Components[0].Kubeconfigs = []string{"missing"}
 			},
 			wantErr: "references kubeconfig",
 		},
 		{
 			name: "duplicate dependency",
-			mutate: func(m *pmdeployerv1alpha1.Module) {
+			mutate: func(m *pmdeployv1alpha1.Module) {
 				m.Spec.DependsOn = []corev1.LocalObjectReference{{Name: "base"}, {Name: "base"}}
 			},
 			wantErr: "more than once",
@@ -77,10 +77,10 @@ func TestProcessRejectsUnsatisfiableReferences(t *testing.T) {
 // A kubeconfig scoped to a declared workspace is accepted.
 func TestProcessAcceptsDeclaredReferences(t *testing.T) {
 	mod := testModule()
-	mod.Spec.Workspaces = []pmdeployerv1alpha1.ModuleWorkspace{{Name: ""}, {Name: "validation"}}
-	mod.Spec.Kubeconfigs = []pmdeployerv1alpha1.ModuleKubeconfig{
-		{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy},
-		{Name: "val", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy, Workspace: "validation"},
+	mod.Spec.Workspaces = []pmdeployv1alpha1.ModuleWorkspace{{Name: ""}, {Name: "validation"}}
+	mod.Spec.Kubeconfigs = []pmdeployv1alpha1.ModuleKubeconfig{
+		{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy},
+		{Name: "val", Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy, Workspace: "validation"},
 	}
 	mod.Spec.Components[0].Kubeconfigs = []string{"kcp", "val"}
 
@@ -93,7 +93,7 @@ func TestProcessAcceptsDeclaredReferences(t *testing.T) {
 // waits for it; only post-topology modules wait for the topology.
 func TestProcessPreTopologyDoesNotWaitForTopology(t *testing.T) {
 	mod := testModule()
-	mod.Spec.Stage = pmdeployerv1alpha1.StagePreTopology
+	mod.Spec.Stage = pmdeployv1alpha1.StagePreTopology
 
 	workload := fake.NewClientBuilder().WithScheme(scheme(t)).Build()
 	reg := clusters.NewRegistry()

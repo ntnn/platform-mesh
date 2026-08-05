@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/test/e2e/suite"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -117,34 +117,34 @@ func seedSecret(t *testing.T, ws ctrlruntimeclient.Client) string {
 	return value
 }
 
-func acmeModule(registry, image string) *pmdeployerv1alpha1.Module {
+func acmeModule(registry, image string) *pmdeployv1alpha1.Module {
 	values := fmt.Sprintf(
 		`{"replicas":1,"image":%q,"greeting":"hello","secretNamespace":%q,"secretName":%q}`,
 		image, secretNamespace, secretConfigMap)
 
-	return &pmdeployerv1alpha1.Module{
+	return &pmdeployv1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: "acme", Namespace: suite.ProviderNamespace},
-		Spec: pmdeployerv1alpha1.ModuleSpec{
+		Spec: pmdeployv1alpha1.ModuleSpec{
 			PlatformMeshRef: corev1.LocalObjectReference{Name: "customer-a"},
-			Stage:           pmdeployerv1alpha1.StagePostTopology,
-			OCM:             &pmdeployerv1alpha1.OCMRepository{URL: registry},
+			Stage:           pmdeployv1alpha1.StagePostTopology,
+			OCM:             &pmdeployv1alpha1.OCMRepository{URL: registry},
 			Component:       moduleComponent,
 			Version:         moduleVersion,
 			Values:          &apiextensionsv1.JSON{Raw: []byte(values)},
-			Workspaces: []pmdeployerv1alpha1.ModuleWorkspace{{
+			Workspaces: []pmdeployv1alpha1.ModuleWorkspace{{
 				Name: "",
 			}},
-			Kubeconfigs: []pmdeployerv1alpha1.ModuleKubeconfig{{
+			Kubeconfigs: []pmdeployv1alpha1.ModuleKubeconfig{{
 				Name:   "kcp",
-				Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy,
+				Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy,
 			}},
-			Components: []pmdeployerv1alpha1.ModuleComponent{{
+			Components: []pmdeployv1alpha1.ModuleComponent{{
 				Name:        "app",
 				Resource:    "app-manifests",
-				Placement:   pmdeployerv1alpha1.PlacementPerFrontProxy,
+				Placement:   pmdeployv1alpha1.PlacementPerFrontProxy,
 				Namespace:   moduleNamespace,
 				Kubeconfigs: []string{"kcp"},
-				Mapping: &pmdeployerv1alpha1.Mapping{
+				Mapping: &pmdeployv1alpha1.Mapping{
 					Path:    modulePath,
 					Service: `${module + "-" + component}`,
 					Port:    8443,
@@ -158,7 +158,7 @@ func waitPlatformMeshReady(t *testing.T, env *suite.Env, name string) {
 	t.Helper()
 	key := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: name}
 	require.Eventually(t, func() bool {
-		pm := &pmdeployerv1alpha1.PlatformMesh{}
+		pm := &pmdeployv1alpha1.PlatformMesh{}
 		if err := env.Config.Client.Get(t.Context(), key, pm); err != nil {
 			return false
 		}
@@ -170,7 +170,7 @@ func waitModuleReady(t *testing.T, env *suite.Env, name string) {
 	t.Helper()
 	key := ctrlruntimeclient.ObjectKey{Namespace: suite.ProviderNamespace, Name: name}
 	require.Eventually(t, func() bool {
-		mod := &pmdeployerv1alpha1.Module{}
+		mod := &pmdeployv1alpha1.Module{}
 		if err := env.Config.Client.Get(t.Context(), key, mod); err != nil {
 			return false
 		}
@@ -180,7 +180,7 @@ func waitModuleReady(t *testing.T, env *suite.Env, name string) {
 
 // assertModuleRunning checks the objects the deployer applied and that the
 // workload reports the context it was given.
-func assertModuleRunning(t *testing.T, env *suite.Env, mod *pmdeployerv1alpha1.Module, wantSecret string) {
+func assertModuleRunning(t *testing.T, env *suite.Env, mod *pmdeployv1alpha1.Module, wantSecret string) {
 	t.Helper()
 	cl := env.Config.Client
 	clusterID := env.Config.NodeIP
@@ -204,7 +204,7 @@ func assertModuleRunning(t *testing.T, env *suite.Env, mod *pmdeployerv1alpha1.M
 		}
 		return dep.Status.ReadyReplicas > 0
 	}, 5*time.Minute, 5*time.Second, "module Deployment did not become ready")
-	assert.Equal(t, "acme", dep.Labels["deployer.platform-mesh.io/module"])
+	assert.Equal(t, "acme", dep.Labels["deploy.platform-mesh.io/module"])
 	// The payload read these off its own component descriptor.
 	assert.Equal(t, moduleVersion, dep.Labels["e2e.platform-mesh.io/component-version"])
 	assert.Equal(t, suite.ManifestResourceType, dep.Annotations["e2e.platform-mesh.io/payload-type"])

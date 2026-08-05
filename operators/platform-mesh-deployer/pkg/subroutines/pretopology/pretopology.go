@@ -24,7 +24,7 @@ import (
 	"sort"
 	"time"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/subroutines"
 
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -51,7 +51,7 @@ func New(client ctrlruntimeclient.Client) *Subroutine {
 func (s *Subroutine) GetName() string { return Name }
 
 func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	pm := obj.(*pmdeployerv1alpha1.PlatformMesh)
+	pm := obj.(*pmdeployv1alpha1.PlatformMesh)
 
 	pending, err := s.pending(ctx, pm)
 	if err != nil {
@@ -82,8 +82,8 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 // pending lists the PlatformMesh's pre-topology modules that are not ready.
 // A module that has not been reconciled yet counts as pending, so the topology
 // never races ahead of one that was only just created.
-func (s *Subroutine) pending(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) ([]string, error) {
-	list := &pmdeployerv1alpha1.ModuleList{}
+func (s *Subroutine) pending(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) ([]string, error) {
+	list := &pmdeployv1alpha1.ModuleList{}
 	if err := s.client.List(ctx, list, ctrlruntimeclient.InNamespace(pm.Namespace)); err != nil {
 		return nil, fmt.Errorf("listing modules: %w", err)
 	}
@@ -94,7 +94,7 @@ func (s *Subroutine) pending(ctx context.Context, pm *pmdeployerv1alpha1.Platfor
 		if mod.Spec.PlatformMeshRef.Name != pm.Name {
 			continue
 		}
-		if mod.Spec.Stage != pmdeployerv1alpha1.StagePreTopology {
+		if mod.Spec.Stage != pmdeployv1alpha1.StagePreTopology {
 			continue
 		}
 		if !meta.IsStatusConditionTrue(mod.Status.Conditions, "Ready") {

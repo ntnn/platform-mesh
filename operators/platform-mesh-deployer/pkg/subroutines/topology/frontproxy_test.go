@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
@@ -37,21 +37,21 @@ import (
 
 // moduleWithMapping builds a Module whose status already carries a resolved
 // mapping, which is what the topology merges into the front proxy.
-func moduleWithMapping(name, component, path string) *pmdeployerv1alpha1.Module {
-	return &pmdeployerv1alpha1.Module{
+func moduleWithMapping(name, component, path string) *pmdeployv1alpha1.Module {
+	return &pmdeployv1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.ModuleSpec{
+		Spec: pmdeployv1alpha1.ModuleSpec{
 			PlatformMeshRef: corev1.LocalObjectReference{Name: "customer-a"},
-			Stage:           pmdeployerv1alpha1.StagePostTopology,
+			Stage:           pmdeployv1alpha1.StagePostTopology,
 			Component:       "github.com/platform-mesh/" + name,
 			Version:         "0.1.0",
 		},
-		Status: pmdeployerv1alpha1.ModuleStatus{
-			Components: []pmdeployerv1alpha1.ModuleComponentStatus{{
+		Status: pmdeployv1alpha1.ModuleStatus{
+			Components: []pmdeployv1alpha1.ModuleComponentStatus{{
 				Name: component,
-				Instances: []pmdeployerv1alpha1.ModuleInstanceStatus{{
+				Instances: []pmdeployv1alpha1.ModuleInstanceStatus{{
 					Cluster: "fp",
-					Mapping: &pmdeployerv1alpha1.ResolvedMapping{
+					Mapping: &pmdeployv1alpha1.ResolvedMapping{
 						Path:    path,
 						Backend: "https://" + name + "." + component + ".svc:8443",
 					},

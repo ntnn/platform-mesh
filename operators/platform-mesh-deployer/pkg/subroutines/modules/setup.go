@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 
 	corev1 "k8s.io/api/core/v1"
@@ -43,20 +43,20 @@ func (s *Subroutine) ensureSetup(ctx context.Context, st *state) error {
 
 	// Content stays bound to the workspace it was declared for; flattening
 	// it would apply a child's manifests into the parent.
-	workspaces := make([]pmdeployerv1alpha1.ModuleSetupWorkspace, 0, len(mod.Spec.Workspaces))
+	workspaces := make([]pmdeployv1alpha1.ModuleSetupWorkspace, 0, len(mod.Spec.Workspaces))
 	for _, ws := range mod.Spec.Workspaces {
-		workspaces = append(workspaces, pmdeployerv1alpha1.ModuleSetupWorkspace{
+		workspaces = append(workspaces, pmdeployv1alpha1.ModuleSetupWorkspace{
 			Path:    module.WorkspacePath(mod.Name, ws.Name),
 			Content: ws.Content,
 		})
 	}
 
-	setup := &pmdeployerv1alpha1.ModuleSetup{
+	setup := &pmdeployv1alpha1.ModuleSetup{
 		ObjectMeta: metav1.ObjectMeta{Name: mod.Name, Namespace: mod.Namespace},
 	}
 	if _, err := controllerutil.CreateOrUpdate(ctx, s.client, setup, func() error {
 		setup.Labels = module.ModuleSelector(mod, "")
-		setup.Spec = pmdeployerv1alpha1.ModuleSetupSpec{
+		setup.Spec = pmdeployv1alpha1.ModuleSetupSpec{
 			PlatformMeshRef: mod.Spec.PlatformMeshRef,
 			ModuleRef:       corev1.LocalObjectReference{Name: mod.Name},
 			ComponentDigest: mod.Status.ResolvedDigest,

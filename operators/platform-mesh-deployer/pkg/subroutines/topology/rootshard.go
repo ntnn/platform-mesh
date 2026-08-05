@@ -22,7 +22,7 @@ import (
 	"net"
 	"strconv"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
@@ -33,7 +33,7 @@ import (
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) error {
+func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
 	group := pm.Spec.Topology.RootShard
 
 	engaged := s.registry.ClustersFor(pm.Name, components.RootShard)
@@ -62,7 +62,7 @@ func (s *Subroutine) reconcileRootShard(ctx context.Context, pm *pmdeployerv1alp
 }
 
 // rootShardRef is the name of the single root shard admin CR that shards reference.
-func (s *Subroutine) rootShardRef(pm *pmdeployerv1alpha1.PlatformMesh) (string, error) {
+func (s *Subroutine) rootShardRef(pm *pmdeployv1alpha1.PlatformMesh) (string, error) {
 	engaged := s.registry.ClustersFor(pm.Name, components.RootShard)
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("root shard not ready")
@@ -71,7 +71,7 @@ func (s *Subroutine) rootShardRef(pm *pmdeployerv1alpha1.PlatformMesh) (string, 
 }
 
 // frontProxyExternal returns the front-proxy's hostname and port.
-func (s *Subroutine) frontProxyExternal(pm *pmdeployerv1alpha1.PlatformMesh) (string, uint32, error) {
+func (s *Subroutine) frontProxyExternal(pm *pmdeployv1alpha1.PlatformMesh) (string, uint32, error) {
 	fp := pm.Spec.Topology.FrontProxy
 	engaged := s.registry.ClustersFor(pm.Name, components.FrontProxy)
 	if len(engaged) == 0 {
@@ -88,7 +88,7 @@ func (s *Subroutine) frontProxyExternal(pm *pmdeployerv1alpha1.PlatformMesh) (st
 	return host, uint32(fp.Exposure.Port), nil
 }
 
-func (s *Subroutine) buildRootShardSpec(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, group pmdeployerv1alpha1.RootShard, clusterID string) (operatorv1alpha1.RootShardSpec, error) {
+func (s *Subroutine) buildRootShardSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, group pmdeployv1alpha1.RootShard, clusterID string) (operatorv1alpha1.RootShardSpec, error) {
 	name := names.RootShard(pm.Name, group.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -98,7 +98,7 @@ func (s *Subroutine) buildRootShardSpec(ctx context.Context, pm *pmdeployerv1alp
 	}
 
 	var spec operatorv1alpha1.RootShardSpec
-	tpl := &pmdeployerv1alpha1.RootShardTemplate{}
+	tpl := &pmdeployv1alpha1.RootShardTemplate{}
 	if err := s.resolveTemplate(ctx, pm, group.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return spec, err
 	}

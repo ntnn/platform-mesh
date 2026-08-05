@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,34 +31,34 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func ref(name, namespace string) *pmdeployerv1alpha1.TemplateReference {
-	return &pmdeployerv1alpha1.TemplateReference{Name: name, Namespace: namespace}
+func ref(name, namespace string) *pmdeployv1alpha1.TemplateReference {
+	return &pmdeployv1alpha1.TemplateReference{Name: name, Namespace: namespace}
 }
 
-func templatedPlatformMesh(name, namespace string) *pmdeployerv1alpha1.PlatformMesh {
-	return &pmdeployerv1alpha1.PlatformMesh{
+func templatedPlatformMesh(name, namespace string) *pmdeployv1alpha1.PlatformMesh {
+	return &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
-		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
-			Topology: pmdeployerv1alpha1.Topology{
-				RootShard: pmdeployerv1alpha1.RootShard{
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
+			Topology: pmdeployv1alpha1.Topology{
+				RootShard: pmdeployv1alpha1.RootShard{
 					Name:        "root",
 					TemplateRef: ref("root", ""),
-					VirtualWorkspaces: pmdeployerv1alpha1.VirtualWorkspaceSpec{
+					VirtualWorkspaces: pmdeployv1alpha1.VirtualWorkspaceSpec{
 						TemplateRef: ref("vw", "shared"),
 					},
 				},
-				FrontProxy: pmdeployerv1alpha1.FrontProxy{
+				FrontProxy: pmdeployv1alpha1.FrontProxy{
 					Name:        "fp",
 					TemplateRef: ref("fp", ""),
 				},
-				CacheServer: &pmdeployerv1alpha1.CacheServer{
+				CacheServer: &pmdeployv1alpha1.CacheServer{
 					Name:        "cache",
 					TemplateRef: ref("cache", ""),
 				},
-				ShardGroups: []pmdeployerv1alpha1.ShardGroup{{
+				ShardGroups: []pmdeployv1alpha1.ShardGroup{{
 					Name:        "default",
 					TemplateRef: ref("default", ""),
-					VirtualWorkspaces: pmdeployerv1alpha1.VirtualWorkspaceSpec{
+					VirtualWorkspaces: pmdeployv1alpha1.VirtualWorkspaceSpec{
 						TemplateRef: ref("vw", "shared"),
 					},
 				}},
@@ -80,7 +80,7 @@ func TestTemplateRefs(t *testing.T) {
 	})
 
 	t.Run("ignores unset refs", func(t *testing.T) {
-		pm := &pmdeployerv1alpha1.PlatformMesh{ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "pm"}}
+		pm := &pmdeployv1alpha1.PlatformMesh{ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "pm"}}
 		assert.Empty(t, templateRefs(pm))
 	})
 }
@@ -94,7 +94,7 @@ func TestEnqueuePlatformMeshesUsingTemplate(t *testing.T) {
 	unrelated.Spec.Topology.ShardGroups[0].VirtualWorkspaces.TemplateRef = nil
 
 	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(a, b, unrelated).Build()
-	shared := &pmdeployerv1alpha1.VirtualWorkspaceTemplate{
+	shared := &pmdeployv1alpha1.VirtualWorkspaceTemplate{
 		ObjectMeta: metav1.ObjectMeta{Name: "vw", Namespace: "shared"},
 	}
 
@@ -111,12 +111,12 @@ func TestTemplateReconcilerFinalizer(t *testing.T) {
 		return &TemplateReconciler{
 			client: fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(objs...).Build(),
 			kind:   "RootShardTemplate",
-			object: func() ctrlruntimeclient.Object { return &pmdeployerv1alpha1.RootShardTemplate{} },
+			object: func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.RootShardTemplate{} },
 		}
 	}
 	key := reconcile.Request{NamespacedName: ctrlruntimeclient.ObjectKey{Namespace: "pm", Name: "root"}}
-	template := func() *pmdeployerv1alpha1.RootShardTemplate {
-		return &pmdeployerv1alpha1.RootShardTemplate{
+	template := func() *pmdeployv1alpha1.RootShardTemplate {
+		return &pmdeployv1alpha1.RootShardTemplate{
 			ObjectMeta: metav1.ObjectMeta{Name: "root", Namespace: "pm"},
 		}
 	}
@@ -126,27 +126,27 @@ func TestTemplateReconcilerFinalizer(t *testing.T) {
 		_, err := r.Reconcile(t.Context(), key)
 		require.NoError(t, err)
 
-		got := &pmdeployerv1alpha1.RootShardTemplate{}
+		got := &pmdeployv1alpha1.RootShardTemplate{}
 		require.NoError(t, r.client.Get(t.Context(), key.NamespacedName, got))
-		assert.True(t, controllerutil.ContainsFinalizer(got, pmdeployerv1alpha1.TemplateFinalizer))
+		assert.True(t, controllerutil.ContainsFinalizer(got, pmdeployv1alpha1.TemplateFinalizer))
 	})
 
 	t.Run("releases an unreferenced template", func(t *testing.T) {
 		held := template()
-		controllerutil.AddFinalizer(held, pmdeployerv1alpha1.TemplateFinalizer)
+		controllerutil.AddFinalizer(held, pmdeployv1alpha1.TemplateFinalizer)
 		r := newReconciler(t, held)
 
 		_, err := r.Reconcile(t.Context(), key)
 		require.NoError(t, err)
 
-		got := &pmdeployerv1alpha1.RootShardTemplate{}
+		got := &pmdeployv1alpha1.RootShardTemplate{}
 		require.NoError(t, r.client.Get(t.Context(), key.NamespacedName, got))
-		assert.False(t, controllerutil.ContainsFinalizer(got, pmdeployerv1alpha1.TemplateFinalizer))
+		assert.False(t, controllerutil.ContainsFinalizer(got, pmdeployv1alpha1.TemplateFinalizer))
 	})
 
 	t.Run("keeps holding while any installation still refers", func(t *testing.T) {
 		held := template()
-		controllerutil.AddFinalizer(held, pmdeployerv1alpha1.TemplateFinalizer)
+		controllerutil.AddFinalizer(held, pmdeployv1alpha1.TemplateFinalizer)
 		gone := templatedPlatformMesh("customer-a", "pm")
 		gone.Spec.Topology.RootShard.TemplateRef = nil
 		r := newReconciler(t, held, gone, templatedPlatformMesh("customer-b", "pm"))
@@ -154,9 +154,9 @@ func TestTemplateReconcilerFinalizer(t *testing.T) {
 		_, err := r.Reconcile(t.Context(), key)
 		require.NoError(t, err)
 
-		got := &pmdeployerv1alpha1.RootShardTemplate{}
+		got := &pmdeployv1alpha1.RootShardTemplate{}
 		require.NoError(t, r.client.Get(t.Context(), key.NamespacedName, got))
-		assert.True(t, controllerutil.ContainsFinalizer(got, pmdeployerv1alpha1.TemplateFinalizer))
+		assert.True(t, controllerutil.ContainsFinalizer(got, pmdeployv1alpha1.TemplateFinalizer))
 	})
 
 	t.Run("ignores a deleted template", func(t *testing.T) {

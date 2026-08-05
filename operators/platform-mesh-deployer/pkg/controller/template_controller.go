@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/utils/ptr"
@@ -57,7 +57,7 @@ func (r *TemplateReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 		For(r.object()).
 		// A PlatformMesh gaining or dropping a reference changes whether
 		// its templates may be deleted.
-		Watches(&pmdeployerv1alpha1.PlatformMesh{}, handler.EnqueueRequestsFromMapFunc(enqueueTemplatesOfPlatformMesh(r.kind))).
+		Watches(&pmdeployv1alpha1.PlatformMesh{}, handler.EnqueueRequestsFromMapFunc(enqueueTemplatesOfPlatformMesh(r.kind))).
 		Named(r.kind + "Reconciler").
 		WithOptions(controller.Options{SkipNameValidation: ptr.To(true)}).
 		Complete(r)
@@ -77,13 +77,13 @@ func (r *TemplateReconciler) Reconcile(ctx context.Context, req reconcile.Reques
 	}
 
 	inUse := len(using) > 0
-	if controllerutil.ContainsFinalizer(tpl, pmdeployerv1alpha1.TemplateFinalizer) == inUse {
+	if controllerutil.ContainsFinalizer(tpl, pmdeployv1alpha1.TemplateFinalizer) == inUse {
 		return reconcile.Result{}, nil
 	}
 	if inUse {
-		controllerutil.AddFinalizer(tpl, pmdeployerv1alpha1.TemplateFinalizer)
+		controllerutil.AddFinalizer(tpl, pmdeployv1alpha1.TemplateFinalizer)
 	} else {
-		controllerutil.RemoveFinalizer(tpl, pmdeployerv1alpha1.TemplateFinalizer)
+		controllerutil.RemoveFinalizer(tpl, pmdeployv1alpha1.TemplateFinalizer)
 	}
 	if err := r.client.Update(ctx, tpl); err != nil && !apierrors.IsConflict(err) {
 		return reconcile.Result{}, fmt.Errorf("updating %s %s finalizer: %w", r.kind, req.NamespacedName, err)

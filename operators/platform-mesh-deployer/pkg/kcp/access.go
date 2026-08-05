@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
@@ -74,7 +74,7 @@ func KubeconfigName(platformMesh string) string {
 // Config mints the admin kubeconfig if needed and returns a rest config for
 // the kcp front proxy. It returns ErrPending until kcp-operator has written
 // the secret.
-func (a *Access) Config(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) (*rest.Config, error) {
+func (a *Access) Config(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) (*rest.Config, error) {
 	frontProxy, err := a.frontProxyRef(pm)
 	if err != nil {
 		return nil, err
@@ -128,7 +128,7 @@ func (a *Access) ClientFor(base *rest.Config, path string) (ctrlruntimeclient.Cl
 }
 
 // frontProxyRef is the FrontProxy object the admin kubeconfig is minted for.
-func (a *Access) frontProxyRef(pm *pmdeployerv1alpha1.PlatformMesh) (string, error) {
+func (a *Access) frontProxyRef(pm *pmdeployv1alpha1.PlatformMesh) (string, error) {
 	engaged := a.registry.ClustersFor(pm.Name, components.FrontProxy)
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("expected exactly one front proxy cluster, found %d", len(engaged))

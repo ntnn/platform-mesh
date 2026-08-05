@@ -22,7 +22,7 @@ import (
 	"sort"
 	"time"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
@@ -42,7 +42,7 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 	// cluster that lost a component is cleaned up.
 	keep := map[string]map[sync.ObjectKey]struct{}{}
 	kinds := map[string]map[schema.GroupVersionKind]struct{}{}
-	status := map[string]*pmdeployerv1alpha1.ModuleComponentStatus{}
+	status := map[string]*pmdeployv1alpha1.ModuleComponentStatus{}
 
 	for _, inst := range st.instances {
 		// The kubeconfigs must exist before the payload references them,
@@ -60,7 +60,7 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 		// A mapped component is fronted by the front proxy, which needs a
 		// certificate it trusts before the topology can route to it, and which
 		// forwards the caller's identity signed by the requestheader CA.
-		var mapping *pmdeployerv1alpha1.ResolvedMapping
+		var mapping *pmdeployv1alpha1.ResolvedMapping
 		if inst.Component.Mapping != nil {
 			if err := s.ensureServingCert(ctx, st, inst, celCtx); err != nil {
 				return err
@@ -111,16 +111,16 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 
 // appliedKindsStatus records every kind applied on any cluster, so teardown
 // can find the objects again once the payload is gone.
-func appliedKindsStatus(perCluster map[string]map[schema.GroupVersionKind]struct{}) []pmdeployerv1alpha1.GroupVersionKind {
+func appliedKindsStatus(perCluster map[string]map[schema.GroupVersionKind]struct{}) []pmdeployv1alpha1.GroupVersionKind {
 	all := map[schema.GroupVersionKind]struct{}{}
 	for _, kinds := range perCluster {
 		for gvk := range kinds {
 			all[gvk] = struct{}{}
 		}
 	}
-	out := make([]pmdeployerv1alpha1.GroupVersionKind, 0, len(all))
+	out := make([]pmdeployv1alpha1.GroupVersionKind, 0, len(all))
 	for _, gvk := range kindsOf(all) {
-		out = append(out, pmdeployerv1alpha1.GroupVersionKind{
+		out = append(out, pmdeployv1alpha1.GroupVersionKind{
 			Group: gvk.Group, Version: gvk.Version, Kind: gvk.Kind,
 		})
 	}
@@ -153,7 +153,7 @@ func (s *Subroutine) prune(ctx context.Context, st *state, keep map[string]map[s
 // previousKinds are the kinds pruned on a cluster the module no longer places
 // anything on. The generated ConfigMap is always applied, so it is enough to
 // detect and clean up a stale instance.
-func previousKinds(*pmdeployerv1alpha1.Module) []schema.GroupVersionKind {
+func previousKinds(*pmdeployv1alpha1.Module) []schema.GroupVersionKind {
 	return []schema.GroupVersionKind{{Version: "v1", Kind: "ConfigMap"}}
 }
 
@@ -168,7 +168,7 @@ func kindsOf(set map[schema.GroupVersionKind]struct{}) []schema.GroupVersionKind
 
 // resolveMapping interpolates a component's mapping into the concrete path and
 // backend URL the front proxy routes with.
-func resolveMapping(inst module.Instance, celCtx celtemplate.Context) (*pmdeployerv1alpha1.ResolvedMapping, error) {
+func resolveMapping(inst module.Instance, celCtx celtemplate.Context) (*pmdeployv1alpha1.ResolvedMapping, error) {
 	m := inst.Component.Mapping
 
 	service, err := celtemplate.Interpolate(m.Service, celCtx)
@@ -189,7 +189,7 @@ func resolveMapping(inst module.Instance, celCtx celtemplate.Context) (*pmdeploy
 		return nil, fmt.Errorf("component %q: mapping path evaluated to %T, want string", inst.Component.Name, path)
 	}
 
-	return &pmdeployerv1alpha1.ResolvedMapping{
+	return &pmdeployv1alpha1.ResolvedMapping{
 		Path: uri,
 		Backend: fmt.Sprintf("https://%s.%s.svc:%d",
 			name, inst.Component.Namespace, m.Port),
@@ -197,16 +197,16 @@ func resolveMapping(inst module.Instance, celCtx celtemplate.Context) (*pmdeploy
 }
 
 // componentStatus records one applied instance.
-func componentStatus(status map[string]*pmdeployerv1alpha1.ModuleComponentStatus, inst module.Instance, configMap string, mapping *pmdeployerv1alpha1.ResolvedMapping) {
+func componentStatus(status map[string]*pmdeployv1alpha1.ModuleComponentStatus, inst module.Instance, configMap string, mapping *pmdeployv1alpha1.ResolvedMapping) {
 	cs, ok := status[inst.Component.Name]
 	if !ok {
-		cs = &pmdeployerv1alpha1.ModuleComponentStatus{
+		cs = &pmdeployv1alpha1.ModuleComponentStatus{
 			Name:      inst.Component.Name,
 			Placement: inst.Component.Placement,
 		}
 		status[inst.Component.Name] = cs
 	}
-	cs.Instances = append(cs.Instances, pmdeployerv1alpha1.ModuleInstanceStatus{
+	cs.Instances = append(cs.Instances, pmdeployv1alpha1.ModuleInstanceStatus{
 		Cluster:   inst.Cluster.ClusterID,
 		Namespace: inst.Component.Namespace,
 		ConfigMap: configMap,
@@ -215,8 +215,8 @@ func componentStatus(status map[string]*pmdeployerv1alpha1.ModuleComponentStatus
 	})
 }
 
-func sortedStatus(status map[string]*pmdeployerv1alpha1.ModuleComponentStatus) []pmdeployerv1alpha1.ModuleComponentStatus {
-	out := make([]pmdeployerv1alpha1.ModuleComponentStatus, 0, len(status))
+func sortedStatus(status map[string]*pmdeployv1alpha1.ModuleComponentStatus) []pmdeployv1alpha1.ModuleComponentStatus {
+	out := make([]pmdeployv1alpha1.ModuleComponentStatus, 0, len(status))
 	for _, cs := range status {
 		sort.Slice(cs.Instances, func(i, j int) bool { return cs.Instances[i].Cluster < cs.Instances[j].Cluster })
 		out = append(out, *cs)

@@ -21,7 +21,7 @@ import (
 	"context"
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
@@ -59,9 +59,9 @@ type stackRenderer interface {
 
 // newRenderer builds the renderer for one ingress stack, or nil for an
 // unsupported type. Each supported type reads its own typed field.
-func newRenderer(stack pmdeployerv1alpha1.IngressStack) (stackRenderer, error) {
+func newRenderer(stack pmdeployv1alpha1.IngressStack) (stackRenderer, error) {
 	switch stack.Type {
-	case pmdeployerv1alpha1.IngressTypeGatewayAPI:
+	case pmdeployv1alpha1.IngressTypeGatewayAPI:
 		return newGatewayAPIRenderer(stack.GatewayAPI)
 	default:
 		return nil, nil
@@ -85,11 +85,11 @@ type endpoint struct {
 	svcSuffix string
 	// backendPort is the Service port; 0 means use the exposure port (front proxy).
 	backendPort int32
-	exposure    pmdeployerv1alpha1.Exposure
+	exposure    pmdeployv1alpha1.Exposure
 }
 
 func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	pm := obj.(*pmdeployerv1alpha1.PlatformMesh)
+	pm := obj.(*pmdeployv1alpha1.PlatformMesh)
 
 	byName, byType, err := renderers(pm)
 	if err != nil {
@@ -160,7 +160,7 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 }
 
 // endpoints lists the exposed components of a PlatformMesh.
-func endpoints(pm *pmdeployerv1alpha1.PlatformMesh) []endpoint {
+func endpoints(pm *pmdeployv1alpha1.PlatformMesh) []endpoint {
 	t := pm.Spec.Topology
 	eps := []endpoint{{
 		component: components.RootShard,
@@ -200,9 +200,9 @@ func endpoints(pm *pmdeployerv1alpha1.PlatformMesh) []endpoint {
 
 // renderers builds a renderer per ingress stack, keyed by stack name for lookup
 // and by type for teardown.
-func renderers(pm *pmdeployerv1alpha1.PlatformMesh) (map[string]stackRenderer, map[pmdeployerv1alpha1.IngressType]stackRenderer, error) {
+func renderers(pm *pmdeployv1alpha1.PlatformMesh) (map[string]stackRenderer, map[pmdeployv1alpha1.IngressType]stackRenderer, error) {
 	byName := map[string]stackRenderer{}
-	byType := map[pmdeployerv1alpha1.IngressType]stackRenderer{}
+	byType := map[pmdeployv1alpha1.IngressType]stackRenderer{}
 	for i := range pm.Spec.Ingress {
 		stack := pm.Spec.Ingress[i]
 		rend, err := newRenderer(stack)

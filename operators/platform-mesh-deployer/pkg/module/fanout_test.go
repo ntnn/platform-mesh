@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 
@@ -39,12 +39,12 @@ func engage(t *testing.T, r *clusters.Registry, names ...string) {
 	}
 }
 
-func moduleWith(components ...pmdeployerv1alpha1.ModuleComponent) *pmdeployerv1alpha1.Module {
-	return &pmdeployerv1alpha1.Module{
+func moduleWith(components ...pmdeployv1alpha1.ModuleComponent) *pmdeployv1alpha1.Module {
+	return &pmdeployv1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: "acme", Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.ModuleSpec{
+		Spec: pmdeployv1alpha1.ModuleSpec{
 			PlatformMeshRef: corev1.LocalObjectReference{Name: "customer-a"},
-			Stage:           pmdeployerv1alpha1.StagePostTopology,
+			Stage:           pmdeployv1alpha1.StagePostTopology,
 			Component:       "github.com/platform-mesh/e2e-acme",
 			Version:         "0.1.0",
 			Components:      components,
@@ -52,8 +52,8 @@ func moduleWith(components ...pmdeployerv1alpha1.ModuleComponent) *pmdeployerv1a
 	}
 }
 
-func component(name string, placement pmdeployerv1alpha1.Placement) pmdeployerv1alpha1.ModuleComponent {
-	return pmdeployerv1alpha1.ModuleComponent{
+func component(name string, placement pmdeployv1alpha1.Placement) pmdeployv1alpha1.ModuleComponent {
+	return pmdeployv1alpha1.ModuleComponent{
 		Name:      name,
 		Resource:  name + "-manifests",
 		Placement: placement,
@@ -65,44 +65,44 @@ func TestFanOut(t *testing.T) {
 	tests := []struct {
 		name      string
 		engaged   []string
-		component pmdeployerv1alpha1.ModuleComponent
+		component pmdeployv1alpha1.ModuleComponent
 		// want is the expected list of "<clusterID>[/<shardGroup>]".
 		want []string
 	}{
 		{
 			name:      "root-shard",
 			engaged:   []string{"rootshard#customer-a--east", "frontproxy#customer-a--fp", "shards-default#customer-a--s1"},
-			component: component("controller", pmdeployerv1alpha1.PlacementRootShard),
+			component: component("controller", pmdeployv1alpha1.PlacementRootShard),
 			want:      []string{"east"},
 		},
 		{
 			name:      "per-front-proxy",
 			engaged:   []string{"rootshard#customer-a--east", "frontproxy#customer-a--fp"},
-			component: component("gateway", pmdeployerv1alpha1.PlacementPerFrontProxy),
+			component: component("gateway", pmdeployv1alpha1.PlacementPerFrontProxy),
 			want:      []string{"fp"},
 		},
 		{
 			name:      "per-shard across groups",
 			engaged:   []string{"shards-default#customer-a--s1", "shards-default#customer-a--s2", "shards-eu#customer-a--s3"},
-			component: component("agent", pmdeployerv1alpha1.PlacementPerShard),
+			component: component("agent", pmdeployv1alpha1.PlacementPerShard),
 			want:      []string{"s1/default", "s2/default", "s3/eu"},
 		},
 		{
 			name:      "all-clusters dedups a cluster engaged twice",
 			engaged:   []string{"rootshard#customer-a--east", "frontproxy#customer-a--east", "shards-default#customer-a--s1"},
-			component: component("bootstrap", pmdeployerv1alpha1.PlacementAllClusters),
+			component: component("bootstrap", pmdeployv1alpha1.PlacementAllClusters),
 			want:      []string{"east", "s1"},
 		},
 		{
 			name:      "other PlatformMesh is ignored",
 			engaged:   []string{"rootshard#customer-b--east"},
-			component: component("controller", pmdeployerv1alpha1.PlacementRootShard),
+			component: component("controller", pmdeployv1alpha1.PlacementRootShard),
 			want:      nil,
 		},
 		{
 			name:      "no engaged cluster yields no instances",
 			engaged:   nil,
-			component: component("controller", pmdeployerv1alpha1.PlacementRootShard),
+			component: component("controller", pmdeployv1alpha1.PlacementRootShard),
 			want:      nil,
 		},
 	}
@@ -132,8 +132,8 @@ func TestFanOutMultipleComponents(t *testing.T) {
 	engage(t, reg, "rootshard#customer-a--east", "shards-default#customer-a--s1", "shards-default#customer-a--s2")
 
 	mod := moduleWith(
-		component("controller", pmdeployerv1alpha1.PlacementRootShard),
-		component("agent", pmdeployerv1alpha1.PlacementPerShard),
+		component("controller", pmdeployv1alpha1.PlacementRootShard),
+		component("agent", pmdeployv1alpha1.PlacementPerShard),
 	)
 	got, err := module.FanOut(reg, mod)
 	require.NoError(t, err)
@@ -148,7 +148,7 @@ func TestFanOutMultipleComponents(t *testing.T) {
 
 func TestFanOutUnknownPlacement(t *testing.T) {
 	reg := clusters.NewRegistry()
-	mod := moduleWith(component("broken", pmdeployerv1alpha1.Placement("nowhere")))
+	mod := moduleWith(component("broken", pmdeployv1alpha1.Placement("nowhere")))
 	_, err := module.FanOut(reg, mod)
 	require.Error(t, err)
 }

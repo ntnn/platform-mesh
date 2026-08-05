@@ -24,7 +24,7 @@ import (
 
 	"ocm.software/open-component-model/bindings/go/blob"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -180,7 +180,7 @@ func (r *Resolved) InstanceSelector(inst Instance) map[string]string {
 }
 
 // ModuleSelector matches every object applied for a module on one cluster.
-func ModuleSelector(mod *pmdeployerv1alpha1.Module, clusterID string) map[string]string {
+func ModuleSelector(mod *pmdeployv1alpha1.Module, clusterID string) map[string]string {
 	return map[string]string{
 		LabelPlatformMesh: mod.Spec.PlatformMeshRef.Name,
 		LabelModule:       mod.Name,

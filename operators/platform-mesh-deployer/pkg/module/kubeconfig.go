@@ -19,7 +19,7 @@ package module
 import (
 	"strings"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 )
 
 // WorkspaceBase is the tree every module's workspaces live under.
@@ -51,13 +51,13 @@ func KubeconfigName(module, kubeconfig, clusterID string) string {
 
 // Kubeconfigs returns the module kubeconfigs a component references, in the
 // order the component lists them.
-func (r *Resolved) Kubeconfigs(component pmdeployerv1alpha1.ModuleComponent) []pmdeployerv1alpha1.ModuleKubeconfig {
-	declared := make(map[string]pmdeployerv1alpha1.ModuleKubeconfig, len(r.Module.Spec.Kubeconfigs))
+func (r *Resolved) Kubeconfigs(component pmdeployv1alpha1.ModuleComponent) []pmdeployv1alpha1.ModuleKubeconfig {
+	declared := make(map[string]pmdeployv1alpha1.ModuleKubeconfig, len(r.Module.Spec.Kubeconfigs))
 	for _, kc := range r.Module.Spec.Kubeconfigs {
 		declared[kc.Name] = kc
 	}
 
-	out := make([]pmdeployerv1alpha1.ModuleKubeconfig, 0, len(component.Kubeconfigs))
+	out := make([]pmdeployv1alpha1.ModuleKubeconfig, 0, len(component.Kubeconfigs))
 	for _, name := range component.Kubeconfigs {
 		if kc, ok := declared[name]; ok {
 			out = append(out, kc)

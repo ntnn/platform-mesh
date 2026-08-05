@@ -2,11 +2,11 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - deployer.platform-mesh.io_modules.yaml
-  - deployer.platform-mesh.io_modulesetups.yaml
-  - deployer.platform-mesh.io_platformmeshes.yaml
-  - deployer.platform-mesh.io_rootshardtemplates.yaml
-  - deployer.platform-mesh.io_shardtemplates.yaml
-  - deployer.platform-mesh.io_frontproxytemplates.yaml
-  - deployer.platform-mesh.io_cacheservertemplates.yaml
-  - deployer.platform-mesh.io_virtualworkspacetemplates.yaml
+  - deploy.platform-mesh.io_modules.yaml
+  - deploy.platform-mesh.io_modulesetups.yaml
+  - deploy.platform-mesh.io_platformmeshes.yaml
+  - deploy.platform-mesh.io_rootshardtemplates.yaml
+  - deploy.platform-mesh.io_shardtemplates.yaml
+  - deploy.platform-mesh.io_frontproxytemplates.yaml
+  - deploy.platform-mesh.io_cacheservertemplates.yaml
+  - deploy.platform-mesh.io_virtualworkspacetemplates.yaml

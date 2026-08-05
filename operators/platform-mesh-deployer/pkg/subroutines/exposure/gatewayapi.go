@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,10 +33,10 @@ import (
 )
 
 type gatewayAPIRenderer struct {
-	values pmdeployerv1alpha1.GatewayAPIValues
+	values pmdeployv1alpha1.GatewayAPIValues
 }
 
-func newGatewayAPIRenderer(values *pmdeployerv1alpha1.GatewayAPIValues) (stackRenderer, error) {
+func newGatewayAPIRenderer(values *pmdeployv1alpha1.GatewayAPIValues) (stackRenderer, error) {
 	if values == nil {
 		return nil, fmt.Errorf("gatewayAPI configuration is required")
 	}

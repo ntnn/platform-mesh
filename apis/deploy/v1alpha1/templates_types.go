@@ -24,7 +24,7 @@ import (
 
 // TemplateFinalizer keeps a template that a PlatformMesh still references from
 // being deleted.
-const TemplateFinalizer = "deployer.platform-mesh.io/in-use"
+const TemplateFinalizer = "deploy.platform-mesh.io/in-use"
 
 // TemplateReference references a template by name. Templates are shared, so a
 // template outside the referencing PlatformMesh's namespace can be addressed

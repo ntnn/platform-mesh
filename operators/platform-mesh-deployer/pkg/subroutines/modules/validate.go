@@ -22,7 +22,7 @@ import (
 	"sort"
 	"strings"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -31,7 +31,7 @@ import (
 // validate rejects a Module whose references cannot be satisfied. These are
 // cross-field rules the CRD cannot express, so they are checked before
 // anything is created.
-func validate(mod *pmdeployerv1alpha1.Module) error {
+func validate(mod *pmdeployv1alpha1.Module) error {
 	declared := make(map[string]struct{}, len(mod.Spec.Workspaces))
 	for _, ws := range mod.Spec.Workspaces {
 		declared[ws.Name] = struct{}{}
@@ -72,8 +72,8 @@ func validate(mod *pmdeployerv1alpha1.Module) error {
 // detectCycle walks the dependency graph of the module's PlatformMesh and
 // reports the cycle the module takes part in, if any. Without this two modules
 // depending on each other would requeue forever instead of failing.
-func (s *Subroutine) detectCycle(ctx context.Context, mod *pmdeployerv1alpha1.Module) error {
-	list := &pmdeployerv1alpha1.ModuleList{}
+func (s *Subroutine) detectCycle(ctx context.Context, mod *pmdeployv1alpha1.Module) error {
+	list := &pmdeployv1alpha1.ModuleList{}
 	if err := s.client.List(ctx, list, ctrlruntimeclient.InNamespace(mod.Namespace)); err != nil {
 		if apierrors.IsNotFound(err) {
 			return nil

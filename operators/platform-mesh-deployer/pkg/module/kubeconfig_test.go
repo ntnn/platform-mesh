@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 )
 
@@ -45,14 +45,14 @@ func TestDerivedNames(t *testing.T) {
 // A component only gets the kubeconfigs it references, in the order it lists
 // them, and unknown names are ignored rather than failing the render.
 func TestKubeconfigsOfComponent(t *testing.T) {
-	mod := moduleWith(component("app", pmdeployerv1alpha1.PlacementRootShard))
-	mod.Spec.Kubeconfigs = []pmdeployerv1alpha1.ModuleKubeconfig{
-		{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy},
-		{Name: "shardadmin", Target: pmdeployerv1alpha1.KubeconfigTargetShard},
+	mod := moduleWith(component("app", pmdeployv1alpha1.PlacementRootShard))
+	mod.Spec.Kubeconfigs = []pmdeployv1alpha1.ModuleKubeconfig{
+		{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy},
+		{Name: "shardadmin", Target: pmdeployv1alpha1.KubeconfigTargetShard},
 	}
 	resolved := &module.Resolved{Module: mod}
 
-	got := resolved.Kubeconfigs(pmdeployerv1alpha1.ModuleComponent{
+	got := resolved.Kubeconfigs(pmdeployv1alpha1.ModuleComponent{
 		Kubeconfigs: []string{"shardadmin", "unknown", "kcp"},
 	})
 	names := make([]string, 0, len(got))
@@ -65,8 +65,8 @@ func TestKubeconfigsOfComponent(t *testing.T) {
 // The module's own workspace is separate so templating does not need an empty
 // map key for it.
 func TestWorkspacePaths(t *testing.T) {
-	mod := moduleWith(component("app", pmdeployerv1alpha1.PlacementRootShard))
-	mod.Spec.Workspaces = []pmdeployerv1alpha1.ModuleWorkspace{
+	mod := moduleWith(component("app", pmdeployv1alpha1.PlacementRootShard))
+	mod.Spec.Workspaces = []pmdeployv1alpha1.ModuleWorkspace{
 		{Name: ""},
 		{Name: "validation"},
 	}

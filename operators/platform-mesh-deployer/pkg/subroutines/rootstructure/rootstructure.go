@@ -23,7 +23,7 @@ import (
 	"errors"
 	"time"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/subroutines"
@@ -57,7 +57,7 @@ func New(access *kcp.Access) *Subroutine {
 func (s *Subroutine) GetName() string { return Name }
 
 func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	pm := obj.(*pmdeployerv1alpha1.PlatformMesh)
+	pm := obj.(*pmdeployv1alpha1.PlatformMesh)
 
 	// kcp only exists once the topology is up, and the topology subroutine
 	// runs before this one in the same chain.
@@ -89,7 +89,7 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 	return subroutines.OK(), nil
 }
 
-func setCondition(pm *pmdeployerv1alpha1.PlatformMesh, status metav1.ConditionStatus, reason, message string) {
+func setCondition(pm *pmdeployv1alpha1.PlatformMesh, status metav1.ConditionStatus, reason, message string) {
 	meta.SetStatusCondition(&pm.Status.Conditions, metav1.Condition{
 		Type:               ConditionProvisioned,
 		Status:             status,

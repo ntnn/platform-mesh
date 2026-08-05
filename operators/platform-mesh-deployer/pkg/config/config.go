@@ -24,10 +24,10 @@ import (
 
 // Default per-component labels selecting kubeconfig secrets.
 const (
-	DefaultRootShardLabel   = "deployer.platform-mesh.io/rootshard"
-	DefaultShardLabel       = "deployer.platform-mesh.io/shards-default"
-	DefaultFrontProxyLabel  = "deployer.platform-mesh.io/frontproxy"
-	DefaultCacheServerLabel = "deployer.platform-mesh.io/cacheserver"
+	DefaultRootShardLabel   = "deploy.platform-mesh.io/rootshard"
+	DefaultShardLabel       = "deploy.platform-mesh.io/shards-default"
+	DefaultFrontProxyLabel  = "deploy.platform-mesh.io/frontproxy"
+	DefaultCacheServerLabel = "deploy.platform-mesh.io/cacheserver"
 )
 
 type ProviderConfig struct {

@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
@@ -30,7 +30,7 @@ import (
 	operatorv1alpha1 "github.com/kcp-dev/kcp-operator/sdk/apis/operator/v1alpha1"
 )
 
-func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) error {
+func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
 	cacheServer := pm.Spec.Topology.CacheServer
 
 	desired := map[string]struct{}{}
@@ -58,7 +58,7 @@ func (s *Subroutine) reconcileCacheServer(ctx context.Context, pm *pmdeployerv1a
 // cacheServerRef is the name of the CacheServer admin CR a shard references.
 // Federating several cache servers is not supported in v1alpha1, so exactly
 // one must be engaged.
-func (s *Subroutine) cacheServerRef(pm *pmdeployerv1alpha1.PlatformMesh, ref string) (string, error) {
+func (s *Subroutine) cacheServerRef(pm *pmdeployv1alpha1.PlatformMesh, ref string) (string, error) {
 	cacheServer := pm.Spec.Topology.CacheServer
 	if cacheServer == nil {
 		return "", fmt.Errorf("cacheServerRef %q set but no cache server defined", ref)
@@ -73,7 +73,7 @@ func (s *Subroutine) cacheServerRef(pm *pmdeployerv1alpha1.PlatformMesh, ref str
 	return names.CacheServer(pm.Name, cacheServer.Name, engaged[0].ClusterID), nil
 }
 
-func (s *Subroutine) buildCacheServerSpec(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, cacheServer pmdeployerv1alpha1.CacheServer, clusterID string) (operatorv1alpha1.CacheServerSpec, error) {
+func (s *Subroutine) buildCacheServerSpec(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, cacheServer pmdeployv1alpha1.CacheServer, clusterID string) (operatorv1alpha1.CacheServerSpec, error) {
 	name := names.CacheServer(pm.Name, cacheServer.Name, clusterID)
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
@@ -82,7 +82,7 @@ func (s *Subroutine) buildCacheServerSpec(ctx context.Context, pm *pmdeployerv1a
 	}
 
 	var spec operatorv1alpha1.CacheServerSpec
-	tpl := &pmdeployerv1alpha1.CacheServerTemplate{}
+	tpl := &pmdeployv1alpha1.CacheServerTemplate{}
 	if err := s.resolveTemplate(ctx, pm, cacheServer.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return spec, err
 	}

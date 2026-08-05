@@ -44,9 +44,9 @@ func TestNewSchemeKnowsEveryGroup(t *testing.T) {
 	s := NewScheme()
 
 	for _, gv := range []struct{ group, version, kind string }{
-		{"deployer.platform-mesh.io", "v1alpha1", "PlatformMesh"},
-		{"deployer.platform-mesh.io", "v1alpha1", "Module"},
-		{"deployer.platform-mesh.io", "v1alpha1", "ModuleSetup"},
+		{"deploy.platform-mesh.io", "v1alpha1", "PlatformMesh"},
+		{"deploy.platform-mesh.io", "v1alpha1", "Module"},
+		{"deploy.platform-mesh.io", "v1alpha1", "ModuleSetup"},
 		{"operator.kcp.io", "v1alpha1", "RootShard"},
 		{"operator.kcp.io", "v1alpha1", "Kubeconfig"},
 		{"deploy.operator.kcp.io", "v1alpha1", "CompiledRootShard"},

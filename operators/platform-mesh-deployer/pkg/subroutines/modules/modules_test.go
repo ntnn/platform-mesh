@@ -28,7 +28,7 @@ import (
 	descriptorruntime "ocm.software/open-component-model/bindings/go/descriptor/runtime"
 	ocmruntime "ocm.software/open-component-model/bindings/go/runtime"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
@@ -61,7 +61,7 @@ func scheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployerv1alpha1.AddToScheme(s))
+	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
 	return s
 }
 
@@ -123,11 +123,11 @@ func (f *fakeResolver) Resolve(context.Context, ocm.OCMRepositorySpec, string, s
 	return f.cv, nil
 }
 
-func platformMesh(ready bool) *pmdeployerv1alpha1.PlatformMesh {
-	pm := &pmdeployerv1alpha1.PlatformMesh{
+func platformMesh(ready bool) *pmdeployv1alpha1.PlatformMesh {
+	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
-			OCM: pmdeployerv1alpha1.OCMRepository{URL: "http://registry:5000"},
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
+			OCM: pmdeployv1alpha1.OCMRepository{URL: "http://registry:5000"},
 		},
 	}
 	status := metav1.ConditionFalse
@@ -140,18 +140,18 @@ func platformMesh(ready bool) *pmdeployerv1alpha1.PlatformMesh {
 	return pm
 }
 
-func testModule() *pmdeployerv1alpha1.Module {
-	return &pmdeployerv1alpha1.Module{
+func testModule() *pmdeployv1alpha1.Module {
+	return &pmdeployv1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: "acme", Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.ModuleSpec{
+		Spec: pmdeployv1alpha1.ModuleSpec{
 			PlatformMeshRef: corev1.LocalObjectReference{Name: "customer-a"},
-			Stage:           pmdeployerv1alpha1.StagePostTopology,
+			Stage:           pmdeployv1alpha1.StagePostTopology,
 			Component:       "github.com/platform-mesh/e2e-acme",
 			Version:         "0.1.0",
-			Components: []pmdeployerv1alpha1.ModuleComponent{{
+			Components: []pmdeployv1alpha1.ModuleComponent{{
 				Name:      "agent",
 				Resource:  "agent-manifests",
-				Placement: pmdeployerv1alpha1.PlacementPerShard,
+				Placement: pmdeployv1alpha1.PlacementPerShard,
 				Namespace: "acme-system",
 			}},
 		},
@@ -215,13 +215,13 @@ func TestProcessWaitsForTopology(t *testing.T) {
 }
 
 func TestProcessDependencies(t *testing.T) {
-	ready := func(m *pmdeployerv1alpha1.Module) *pmdeployerv1alpha1.Module {
+	ready := func(m *pmdeployv1alpha1.Module) *pmdeployv1alpha1.Module {
 		meta.SetStatusCondition(&m.Status.Conditions, metav1.Condition{
 			Type: "Ready", Status: metav1.ConditionTrue, Reason: "R", Message: "ready",
 		})
 		return m
 	}
-	dep := func(name string, mutate func(*pmdeployerv1alpha1.Module)) *pmdeployerv1alpha1.Module {
+	dep := func(name string, mutate func(*pmdeployv1alpha1.Module)) *pmdeployv1alpha1.Module {
 		m := testModule()
 		m.Name = name
 		if mutate != nil {
@@ -232,8 +232,8 @@ func TestProcessDependencies(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		dependency *pmdeployerv1alpha1.Module
-		stage      pmdeployerv1alpha1.Stage
+		dependency *pmdeployv1alpha1.Module
+		stage      pmdeployv1alpha1.Stage
 		wantReason string
 	}{
 		{
@@ -248,13 +248,13 @@ func TestProcessDependencies(t *testing.T) {
 		},
 		{
 			name:       "dependency of another PlatformMesh",
-			dependency: ready(dep("base", func(m *pmdeployerv1alpha1.Module) { m.Spec.PlatformMeshRef.Name = "other" })),
+			dependency: ready(dep("base", func(m *pmdeployv1alpha1.Module) { m.Spec.PlatformMeshRef.Name = "other" })),
 			wantReason: "WaitingForDependency",
 		},
 		{
 			name:       "pre-topology depending on post-topology",
 			dependency: ready(dep("base", nil)),
-			stage:      pmdeployerv1alpha1.StagePreTopology,
+			stage:      pmdeployv1alpha1.StagePreTopology,
 			wantReason: "WaitingForDependency",
 		},
 		{
@@ -340,7 +340,7 @@ func TestProcessRejectsDependencyCycles(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			objs := tt.build()
-			mod := objs[1].(*pmdeployerv1alpha1.Module)
+			mod := objs[1].(*pmdeployv1alpha1.Module)
 
 			sub := newSubroutine(t, objs, clusters.NewRegistry())
 			_, err := sub.Process(t.Context(), mod)

@@ -30,7 +30,7 @@ tasks:
     cmds:
       - task: tools:generate-crds
         vars:
-          PATH: /deployer/...
+          PATH: /deploy/...
           OUTPUT: '{{.CRD_DIRECTORY}}'
   # The deployer CRDs live on the management cluster, not in kcp — no apigen.
   generate:
@@ -38,7 +38,7 @@ tasks:
       - task: manifests
       - task: tools:generate-deepcopy
         vars:
-          PATH: /deployer/...
+          PATH: /deploy/...
   generate:mocks:
     desc: Generate mocks using mockery
     deps: [tools:mockery]

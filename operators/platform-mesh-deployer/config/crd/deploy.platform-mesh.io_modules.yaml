@@ -17,9 +17,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: modules.deployer.platform-mesh.io
+  name: modules.deploy.platform-mesh.io
 spec:
-  group: deployer.platform-mesh.io
+  group: deploy.platform-mesh.io
   names:
     kind: Module
     listKind: ModuleList

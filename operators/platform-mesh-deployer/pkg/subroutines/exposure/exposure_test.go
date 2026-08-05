@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
@@ -54,38 +54,38 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployerv1alpha1.AddToScheme(s))
+	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
 	require.NoError(t, gwapiv1alpha2.Install(s))
 	return s
 }
 
-func exposeString(host string, port int32) pmdeployerv1alpha1.Exposure {
-	return pmdeployerv1alpha1.Exposure{HostnameTemplate: host, Port: port}
+func exposeString(host string, port int32) pmdeployv1alpha1.Exposure {
+	return pmdeployv1alpha1.Exposure{HostnameTemplate: host, Port: port}
 }
 
 func TestExposureCreatesRoutes(t *testing.T) {
 	s := testScheme(t)
-	pm := &pmdeployerv1alpha1.PlatformMesh{
+	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
-			Topology: pmdeployerv1alpha1.Topology{
-				RootShard: pmdeployerv1alpha1.RootShard{
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
+			Topology: pmdeployv1alpha1.Topology{
+				RootShard: pmdeployv1alpha1.RootShard{
 					Name:     "root",
 					Exposure: exposeString(`"root." + cluster + ".sslip.io"`, 31443),
 				},
-				FrontProxy: pmdeployerv1alpha1.FrontProxy{
+				FrontProxy: pmdeployv1alpha1.FrontProxy{
 					Name:     "fp",
 					Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443),
 				},
-				ShardGroups: []pmdeployerv1alpha1.ShardGroup{{
+				ShardGroups: []pmdeployv1alpha1.ShardGroup{{
 					Name:     "eu",
 					Exposure: ptrExposure(exposeString(`component + "." + cluster + ".sslip.io"`, 31443)),
 				}},
 			},
-			Ingress: []pmdeployerv1alpha1.IngressStack{{
+			Ingress: []pmdeployv1alpha1.IngressStack{{
 				Name: "gw",
-				Type: pmdeployerv1alpha1.IngressTypeGatewayAPI,
-				GatewayAPI: &pmdeployerv1alpha1.GatewayAPIValues{
+				Type: pmdeployv1alpha1.IngressTypeGatewayAPI,
+				GatewayAPI: &pmdeployv1alpha1.GatewayAPIValues{
 					GatewayName:      "eg",
 					GatewayNamespace: "envoy-gateway-system",
 					SectionName:      "passthrough",
@@ -129,12 +129,12 @@ func TestExposureCreatesRoutes(t *testing.T) {
 
 func TestExposureNoStacksNoRoutes(t *testing.T) {
 	s := testScheme(t)
-	pm := &pmdeployerv1alpha1.PlatformMesh{
+	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
-			Topology: pmdeployerv1alpha1.Topology{
-				RootShard:  pmdeployerv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"x"`, 31443)},
-				FrontProxy: pmdeployerv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"x"`, 31443)},
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
+			Topology: pmdeployv1alpha1.Topology{
+				RootShard:  pmdeployv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"x"`, 31443)},
+				FrontProxy: pmdeployv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"x"`, 31443)},
 			},
 		},
 	}
@@ -165,17 +165,17 @@ func TestExposureTeardownStale(t *testing.T) {
 	}
 	fpCl := fake.NewClientBuilder().WithScheme(s).WithObjects(stale).Build()
 
-	pm := &pmdeployerv1alpha1.PlatformMesh{
+	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
-			Topology: pmdeployerv1alpha1.Topology{
-				RootShard:  pmdeployerv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
-				FrontProxy: pmdeployerv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
+			Topology: pmdeployv1alpha1.Topology{
+				RootShard:  pmdeployv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
+				FrontProxy: pmdeployv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
 			},
-			Ingress: []pmdeployerv1alpha1.IngressStack{{
+			Ingress: []pmdeployv1alpha1.IngressStack{{
 				Name:       "gw",
-				Type:       pmdeployerv1alpha1.IngressTypeGatewayAPI,
-				GatewayAPI: &pmdeployerv1alpha1.GatewayAPIValues{GatewayName: "eg", GatewayNamespace: "envoy-gateway-system"},
+				Type:       pmdeployv1alpha1.IngressTypeGatewayAPI,
+				GatewayAPI: &pmdeployv1alpha1.GatewayAPIValues{GatewayName: "eg", GatewayNamespace: "envoy-gateway-system"},
 			}},
 		},
 	}
@@ -209,17 +209,17 @@ func TestExposureTeardownKeepsModuleRoutes(t *testing.T) {
 	}
 	fpCl := fake.NewClientBuilder().WithScheme(s).WithObjects(owned).Build()
 
-	pm := &pmdeployerv1alpha1.PlatformMesh{
+	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
-			Topology: pmdeployerv1alpha1.Topology{
-				RootShard:  pmdeployerv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
-				FrontProxy: pmdeployerv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
+			Topology: pmdeployv1alpha1.Topology{
+				RootShard:  pmdeployv1alpha1.RootShard{Name: "root", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
+				FrontProxy: pmdeployv1alpha1.FrontProxy{Name: "fp", Exposure: exposeString(`"fp." + cluster + ".sslip.io"`, 31443)},
 			},
-			Ingress: []pmdeployerv1alpha1.IngressStack{{
+			Ingress: []pmdeployv1alpha1.IngressStack{{
 				Name:       "gw",
-				Type:       pmdeployerv1alpha1.IngressTypeGatewayAPI,
-				GatewayAPI: &pmdeployerv1alpha1.GatewayAPIValues{GatewayName: "eg", GatewayNamespace: "envoy-gateway-system"},
+				Type:       pmdeployv1alpha1.IngressTypeGatewayAPI,
+				GatewayAPI: &pmdeployv1alpha1.GatewayAPIValues{GatewayName: "eg", GatewayNamespace: "envoy-gateway-system"},
 			}},
 		},
 	}
@@ -233,7 +233,7 @@ func TestExposureTeardownKeepsModuleRoutes(t *testing.T) {
 	assert.NoError(t, fpCl.Get(context.Background(), ctrlruntimeclient.ObjectKeyFromObject(owned), route))
 }
 
-func ptrExposure(e pmdeployerv1alpha1.Exposure) *pmdeployerv1alpha1.Exposure { return &e }
+func ptrExposure(e pmdeployv1alpha1.Exposure) *pmdeployv1alpha1.Exposure { return &e }
 
 func engage(t *testing.T, r *clusters.Registry, name string, cl ctrlruntimeclient.Client) {
 	t.Helper()

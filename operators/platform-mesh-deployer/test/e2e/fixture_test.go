@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/test/e2e/suite"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,7 +35,7 @@ import (
 
 // createPlatformMesh creates the installation under test along with the
 // topology templates it references.
-func createPlatformMesh(t *testing.T, c ctrlruntimeclient.Client, etcdEndpoint string) *pmdeployerv1alpha1.PlatformMesh {
+func createPlatformMesh(t *testing.T, c ctrlruntimeclient.Client, etcdEndpoint string) *pmdeployv1alpha1.PlatformMesh {
 	t.Helper()
 	pm, templates := platformMesh(etcdEndpoint)
 	for _, tpl := range templates {
@@ -45,7 +45,7 @@ func createPlatformMesh(t *testing.T, c ctrlruntimeclient.Client, etcdEndpoint s
 	return pm
 }
 
-func platformMesh(etcdEndpoint string) (*pmdeployerv1alpha1.PlatformMesh, []ctrlruntimeclient.Object) {
+func platformMesh(etcdEndpoint string) (*pmdeployv1alpha1.PlatformMesh, []ctrlruntimeclient.Object) {
 	etcd := func(prefix string) *operatorv1alpha1.EtcdConfig {
 		return &operatorv1alpha1.EtcdConfig{
 			Endpoints: []string{strconv.Quote(etcdEndpoint)},
@@ -65,15 +65,15 @@ func platformMesh(etcdEndpoint string) (*pmdeployerv1alpha1.PlatformMesh, []ctrl
 		},
 	}
 	// host builds an sslip.io exposure; cluster carries the dashed node IP so it self-resolves.
-	host := func(expr string) pmdeployerv1alpha1.Exposure {
-		return pmdeployerv1alpha1.Exposure{
+	host := func(expr string) pmdeployv1alpha1.Exposure {
+		return pmdeployv1alpha1.Exposure{
 			HostnameTemplate: expr,
 			Port:             31443,
 		}
 	}
 
 	templates := []ctrlruntimeclient.Object{
-		&pmdeployerv1alpha1.RootShardTemplate{
+		&pmdeployv1alpha1.RootShardTemplate{
 			ObjectMeta: metav1.ObjectMeta{Name: "root", Namespace: suite.ProviderNamespace},
 			Spec: operatorv1alpha1.RootShardTemplateSpec{
 				CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
@@ -82,7 +82,7 @@ func platformMesh(etcdEndpoint string) (*pmdeployerv1alpha1.PlatformMesh, []ctrl
 				Certificates: certs,
 			},
 		},
-		&pmdeployerv1alpha1.ShardTemplate{
+		&pmdeployv1alpha1.ShardTemplate{
 			ObjectMeta: metav1.ObjectMeta{Name: "default", Namespace: suite.ProviderNamespace},
 			Spec: operatorv1alpha1.ShardTemplateSpec{
 				CommonShardSpecTemplate: operatorv1alpha1.CommonShardSpecTemplate{
@@ -92,43 +92,43 @@ func platformMesh(etcdEndpoint string) (*pmdeployerv1alpha1.PlatformMesh, []ctrl
 		},
 	}
 
-	return &pmdeployerv1alpha1.PlatformMesh{
+	return &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      suite.PlatformMeshName,
 			Namespace: suite.ProviderNamespace,
 		},
-		Spec: pmdeployerv1alpha1.PlatformMeshSpec{
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
 			Version: "0.0.0",
-			OCM: pmdeployerv1alpha1.OCMRepository{
+			OCM: pmdeployv1alpha1.OCMRepository{
 				URL: "oci://example.com/platform-mesh",
 			},
-			Ingress: []pmdeployerv1alpha1.IngressStack{{
+			Ingress: []pmdeployv1alpha1.IngressStack{{
 				Name: "gateway",
-				Type: pmdeployerv1alpha1.IngressTypeGatewayAPI,
-				GatewayAPI: &pmdeployerv1alpha1.GatewayAPIValues{
+				Type: pmdeployv1alpha1.IngressTypeGatewayAPI,
+				GatewayAPI: &pmdeployv1alpha1.GatewayAPIValues{
 					GatewayName:      "eg",
 					GatewayNamespace: "envoy-gateway-system",
 					SectionName:      "passthrough",
 				},
 			}},
-			Topology: pmdeployerv1alpha1.Topology{
-				RootShard: pmdeployerv1alpha1.RootShard{
+			Topology: pmdeployv1alpha1.Topology{
+				RootShard: pmdeployv1alpha1.RootShard{
 					Name:        "root",
-					TemplateRef: &pmdeployerv1alpha1.TemplateReference{Name: "root"},
+					TemplateRef: &pmdeployv1alpha1.TemplateReference{Name: "root"},
 					Exposure:    host(`"root." + cluster + ".sslip.io"`),
-					VirtualWorkspaces: pmdeployerv1alpha1.VirtualWorkspaceSpec{
+					VirtualWorkspaces: pmdeployv1alpha1.VirtualWorkspaceSpec{
 						Exposure: host(`"vw-root." + cluster + ".sslip.io"`),
 					},
 				},
-				ShardGroups: []pmdeployerv1alpha1.ShardGroup{{
+				ShardGroups: []pmdeployv1alpha1.ShardGroup{{
 					Name:        "default",
-					TemplateRef: &pmdeployerv1alpha1.TemplateReference{Name: "default"},
+					TemplateRef: &pmdeployv1alpha1.TemplateReference{Name: "default"},
 					Exposure:    ptr.To(host(`component + "." + cluster + ".sslip.io"`)),
-					VirtualWorkspaces: pmdeployerv1alpha1.VirtualWorkspaceSpec{
+					VirtualWorkspaces: pmdeployv1alpha1.VirtualWorkspaceSpec{
 						Exposure: host(`"vw." + component + "." + cluster + ".sslip.io"`),
 					},
 				}},
-				FrontProxy: pmdeployerv1alpha1.FrontProxy{
+				FrontProxy: pmdeployv1alpha1.FrontProxy{
 					Name:     "fp",
 					Exposure: host(`"fp." + cluster + ".sslip.io"`),
 				},

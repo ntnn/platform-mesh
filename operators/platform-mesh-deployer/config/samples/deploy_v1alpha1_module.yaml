@@ -12,24 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# ModuleSetup is normally created by the deployer itself; this sample only
-# illustrates the shape of the resource.
-apiVersion: deployer.platform-mesh.io/v1alpha1
-kind: ModuleSetup
+apiVersion: deploy.platform-mesh.io/v1alpha1
+kind: Module
 metadata:
-  name: account-operator-setup
+  name: account-operator
   namespace: platform-mesh-system
 spec:
   platformMeshRef:
     name: platform-mesh-sample
-  moduleRef:
-    name: account-operator
-  componentDigest: sha256:0000000000000000000000000000000000000000000000000000000000000000
-  kcpContent:
-    - name: apiresourceschemas
-      version: 1.0.0
-      digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  stage: post-topology
+  component: github.com/platform-mesh/account-operator
+  version: 1.0.0
+  values:
+    replicas: 1
   workspaces:
-    - root:orgs
-  kubeconfigRefs:
-    - name: account-operator-kubeconfig
+    - name: ""
+      content:
+        - name: apiresourceschemas
+        - name: apiexports
+  kubeconfigs:
+    - name: kcp
+      target: front-proxy
+  components:
+    - name: controller
+      resource: controller-manifests
+      placement: root-shard
+      namespace: account-operator-system
+      kubeconfigs:
+        - kcp

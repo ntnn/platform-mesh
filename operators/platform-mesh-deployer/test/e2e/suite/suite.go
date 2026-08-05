@@ -142,7 +142,7 @@ func (e *Env) EngageWorkload(t *testing.T, platformMesh string, workload *Cluste
 
 	labels := map[string]string{}
 	for _, c := range components {
-		labels["deployer.platform-mesh.io/"+c] = "true"
+		labels["deploy.platform-mesh.io/"+c] = "true"
 	}
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

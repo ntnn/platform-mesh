@@ -22,16 +22,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/ready"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestProcessRecordsResolvedVersion(t *testing.T) {
-	pm := &pmdeployerv1alpha1.PlatformMesh{
+	pm := &pmdeployv1alpha1.PlatformMesh{
 		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-		Spec:       pmdeployerv1alpha1.PlatformMeshSpec{Version: "1.2.3"},
+		Spec:       pmdeployv1alpha1.PlatformMeshSpec{Version: "1.2.3"},
 	}
 
 	sub := ready.New()

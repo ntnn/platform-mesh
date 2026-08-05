@@ -22,7 +22,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/subroutines"
@@ -38,9 +38,9 @@ import (
 const Name = "TopologySubroutine"
 
 const (
-	LabelPlatformMesh = "deployer.platform-mesh.io/platform-mesh"
-	LabelComponent    = "deployer.platform-mesh.io/component"
-	LabelCluster      = "deployer.platform-mesh.io/cluster"
+	LabelPlatformMesh = "deploy.platform-mesh.io/platform-mesh"
+	LabelComponent    = "deploy.platform-mesh.io/component"
+	LabelCluster      = "deploy.platform-mesh.io/cluster"
 )
 
 type Subroutine struct {
@@ -55,7 +55,7 @@ func New(client ctrlruntimeclient.Client, registry *clusters.Registry) *Subrouti
 func (s *Subroutine) GetName() string { return Name }
 
 func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	pm := obj.(*pmdeployerv1alpha1.PlatformMesh)
+	pm := obj.(*pmdeployv1alpha1.PlatformMesh)
 	if err := s.reconcileRootShard(ctx, pm); err != nil {
 		return subroutines.Result{}, err
 	}
@@ -76,7 +76,7 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 
 // resolveTemplate converts the referenced template CR's spec into out.
 // A nil ref leaves out at its zero value.
-func (s *Subroutine) resolveTemplate(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, ref *pmdeployerv1alpha1.TemplateReference, tpl ctrlruntimeclient.Object, spec func() any, out any) error {
+func (s *Subroutine) resolveTemplate(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, ref *pmdeployv1alpha1.TemplateReference, tpl ctrlruntimeclient.Object, spec func() any, out any) error {
 	if ref == nil {
 		return nil
 	}
@@ -123,7 +123,7 @@ func labels(platformMesh, component, clusterID string) map[string]string {
 	}
 }
 
-func (s *Subroutine) apply(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, obj ctrlruntimeclient.Object, mutate func()) error {
+func (s *Subroutine) apply(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, obj ctrlruntimeclient.Object, mutate func()) error {
 	_, err := controllerutil.CreateOrUpdate(ctx, s.client, obj, func() error {
 		mutate()
 		return controllerutil.SetControllerReference(pm, obj, s.client.Scheme())
@@ -132,7 +132,7 @@ func (s *Subroutine) apply(ctx context.Context, pm *pmdeployerv1alpha1.PlatformM
 }
 
 // teardown deletes admin CRs of the deleted component identified by their name.
-func (s *Subroutine) teardown(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, component string, list ctrlruntimeclient.ObjectList, desired map[string]struct{}) error {
+func (s *Subroutine) teardown(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, component string, list ctrlruntimeclient.ObjectList, desired map[string]struct{}) error {
 	if err := s.client.List(ctx, list,
 		ctrlruntimeclient.InNamespace(pm.Namespace),
 		ctrlruntimeclient.MatchingLabels{LabelPlatformMesh: pm.Name, LabelComponent: component},

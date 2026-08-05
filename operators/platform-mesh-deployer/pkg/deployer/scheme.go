@@ -17,7 +17,7 @@ limitations under the License.
 package deployer
 
 import (
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -36,7 +36,7 @@ import (
 func NewScheme() *runtime.Scheme {
 	scheme := runtime.NewScheme()
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	utilruntime.Must(pmdeployerv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(pmdeployv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(operatorv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(deployv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(gwapiv1.Install(scheme))

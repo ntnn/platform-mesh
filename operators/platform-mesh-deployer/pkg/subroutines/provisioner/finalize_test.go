@@ -21,13 +21,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 )
 
 // Children must be deleted before their parents, otherwise removing the parent
 // strands them.
 func TestDeepestFirst(t *testing.T) {
-	got := deepestFirst([]pmdeployerv1alpha1.ModuleSetupWorkspace{
+	got := deepestFirst([]pmdeployv1alpha1.ModuleSetupWorkspace{
 		{Path: "root:modules:acme"},
 		{Path: "root:modules:acme:validation:deep"},
 		{Path: "root:modules:acme:validation"},
@@ -48,7 +48,7 @@ func TestDeepestFirstEmpty(t *testing.T) {
 // A module's payload addresses its workspaces through the published endpoints,
 // so the module workspace itself gets a stable name and children keep theirs.
 func TestWorkspaceEndpoints(t *testing.T) {
-	got := workspaceEndpoints("https://fp.example.com:6443", []pmdeployerv1alpha1.ModuleSetupWorkspace{
+	got := workspaceEndpoints("https://fp.example.com:6443", []pmdeployv1alpha1.ModuleSetupWorkspace{
 		{Path: "root:modules:acme"},
 		{Path: "root:modules:acme:validation"},
 	})

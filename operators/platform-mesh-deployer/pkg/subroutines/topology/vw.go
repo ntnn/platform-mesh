@@ -20,7 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
@@ -32,11 +32,11 @@ import (
 )
 
 // reconcileVirtualWorkspaces deploys one standalone virtual workspace per shard.
-func (s *Subroutine) reconcileVirtualWorkspaces(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh) error {
+func (s *Subroutine) reconcileVirtualWorkspaces(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh) error {
 	desired := map[string]struct{}{}
 
 	root := pm.Spec.Topology.RootShard
-	if root.VirtualWorkspaces.Mode == pmdeployerv1alpha1.VirtualWorkspaceModeStandalone {
+	if root.VirtualWorkspaces.Mode == pmdeployv1alpha1.VirtualWorkspaceModeStandalone {
 		for _, cl := range s.registry.ClustersFor(pm.Name, components.RootShard) {
 			name := names.VirtualWorkspace(pm.Name, root.Name, cl.ClusterID)
 			shard := names.RootShard(pm.Name, root.Name, cl.ClusterID)
@@ -50,7 +50,7 @@ func (s *Subroutine) reconcileVirtualWorkspaces(ctx context.Context, pm *pmdeplo
 
 	for i := range pm.Spec.Topology.ShardGroups {
 		group := pm.Spec.Topology.ShardGroups[i]
-		if group.VirtualWorkspaces.Mode != pmdeployerv1alpha1.VirtualWorkspaceModeStandalone {
+		if group.VirtualWorkspaces.Mode != pmdeployv1alpha1.VirtualWorkspaceModeStandalone {
 			continue
 		}
 		for _, cl := range s.registry.ClustersFor(pm.Name, components.Shard(group.Name)) {
@@ -67,7 +67,7 @@ func (s *Subroutine) reconcileVirtualWorkspaces(ctx context.Context, pm *pmdeplo
 	return s.teardown(ctx, pm, components.VirtualWorkspace, &operatorv1alpha1.VirtualWorkspaceList{}, desired)
 }
 
-func (s *Subroutine) reconcileVirtualWorkspace(ctx context.Context, pm *pmdeployerv1alpha1.PlatformMesh, vws pmdeployerv1alpha1.VirtualWorkspaceSpec, shardGroup, name, clusterID string, target operatorv1alpha1.VirtualWorkspaceTarget) error {
+func (s *Subroutine) reconcileVirtualWorkspace(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, vws pmdeployv1alpha1.VirtualWorkspaceSpec, shardGroup, name, clusterID string, target operatorv1alpha1.VirtualWorkspaceTarget) error {
 	celCtx := celtemplate.Context{
 		PlatformMesh: pm.Name,
 		Component:    components.VirtualWorkspace,
@@ -76,7 +76,7 @@ func (s *Subroutine) reconcileVirtualWorkspace(ctx context.Context, pm *pmdeploy
 	}
 
 	var spec operatorv1alpha1.VirtualWorkspaceSpec
-	tpl := &pmdeployerv1alpha1.VirtualWorkspaceTemplate{}
+	tpl := &pmdeployv1alpha1.VirtualWorkspaceTemplate{}
 	if err := s.resolveTemplate(ctx, pm, vws.TemplateRef, tpl, func() any { return tpl.Spec }, &spec); err != nil {
 		return err
 	}

@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
@@ -42,7 +42,7 @@ func internalScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	s := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(s))
-	require.NoError(t, pmdeployerv1alpha1.AddToScheme(s))
+	require.NoError(t, pmdeployv1alpha1.AddToScheme(s))
 	require.NoError(t, operatorv1alpha1.AddToScheme(s))
 	return s
 }
@@ -54,12 +54,12 @@ func internalState(t *testing.T, engaged ...string) *state {
 		require.NoError(t, reg.Engage(context.Background(), multicluster.ClusterName(n), nil))
 	}
 	return &state{
-		platformMesh: &pmdeployerv1alpha1.PlatformMesh{
+		platformMesh: &pmdeployv1alpha1.PlatformMesh{
 			ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-			Spec: pmdeployerv1alpha1.PlatformMeshSpec{
-				Topology: pmdeployerv1alpha1.Topology{
-					RootShard:  pmdeployerv1alpha1.RootShard{Name: "root"},
-					FrontProxy: pmdeployerv1alpha1.FrontProxy{Name: "fp"},
+			Spec: pmdeployv1alpha1.PlatformMeshSpec{
+				Topology: pmdeployv1alpha1.Topology{
+					RootShard:  pmdeployv1alpha1.RootShard{Name: "root"},
+					FrontProxy: pmdeployv1alpha1.FrontProxy{Name: "fp"},
 				},
 			},
 		},
@@ -77,9 +77,9 @@ func internalSubroutine(t *testing.T, engaged ...string) (*Subroutine, *state) {
 	return New(fake.NewClientBuilder().WithScheme(s).Build(), reg, nil), st
 }
 
-func instance(component string, placement pmdeployerv1alpha1.Placement, clusterID, shardGroup string) module.Instance {
+func instance(component string, placement pmdeployv1alpha1.Placement, clusterID, shardGroup string) module.Instance {
 	return module.Instance{
-		Component: pmdeployerv1alpha1.ModuleComponent{
+		Component: pmdeployv1alpha1.ModuleComponent{
 			Name: component, Placement: placement, Namespace: "acme-system",
 		},
 		Cluster:    clusters.Cluster{ClusterID: clusterID},
@@ -93,22 +93,22 @@ func TestKubeconfigTarget(t *testing.T) {
 	sub, st := internalSubroutine(t, "rootshard#customer-a--east", "frontproxy#customer-a--fp1")
 
 	front, err := sub.kubeconfigTarget(st,
-		pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy},
-		instance("app", pmdeployerv1alpha1.PlacementRootShard, "east", ""))
+		pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy},
+		instance("app", pmdeployv1alpha1.PlacementRootShard, "east", ""))
 	require.NoError(t, err)
 	require.NotNil(t, front.FrontProxyRef)
 	assert.Equal(t, names.FrontProxy("customer-a", "fp", "fp1"), front.FrontProxyRef.Name)
 
 	root, err := sub.kubeconfigTarget(st,
-		pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetRootShard},
-		instance("app", pmdeployerv1alpha1.PlacementRootShard, "east", ""))
+		pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetRootShard},
+		instance("app", pmdeployv1alpha1.PlacementRootShard, "east", ""))
 	require.NoError(t, err)
 	require.NotNil(t, root.RootShardRef)
 	assert.Equal(t, names.RootShard("customer-a", "root", "east"), root.RootShardRef.Name)
 
 	shard, err := sub.kubeconfigTarget(st,
-		pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetShard},
-		instance("agent", pmdeployerv1alpha1.PlacementPerShard, "s1", "default"))
+		pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetShard},
+		instance("agent", pmdeployv1alpha1.PlacementPerShard, "s1", "default"))
 	require.NoError(t, err)
 	require.NotNil(t, shard.ShardRef)
 	assert.Equal(t, names.Shard("customer-a", "default", "s1"), shard.ShardRef.Name)
@@ -118,34 +118,34 @@ func TestKubeconfigTargetErrors(t *testing.T) {
 	tests := []struct {
 		name    string
 		engaged []string
-		kc      pmdeployerv1alpha1.ModuleKubeconfig
+		kc      pmdeployv1alpha1.ModuleKubeconfig
 		inst    module.Instance
 		wantErr string
 	}{
 		{
 			name:    "shard target on a component that is not per shard",
 			engaged: []string{"rootshard#customer-a--east"},
-			kc:      pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetShard},
-			inst:    instance("app", pmdeployerv1alpha1.PlacementRootShard, "east", ""),
+			kc:      pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetShard},
+			inst:    instance("app", pmdeployv1alpha1.PlacementRootShard, "east", ""),
 			wantErr: "not placed per shard",
 		},
 		{
 			name:    "no front proxy engaged",
-			kc:      pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy},
-			inst:    instance("app", pmdeployerv1alpha1.PlacementRootShard, "east", ""),
+			kc:      pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy},
+			inst:    instance("app", pmdeployv1alpha1.PlacementRootShard, "east", ""),
 			wantErr: "no frontproxy cluster engaged",
 		},
 		{
 			name:    "several front proxies",
 			engaged: []string{"frontproxy#customer-a--a", "frontproxy#customer-a--b"},
-			kc:      pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTargetFrontProxy},
-			inst:    instance("app", pmdeployerv1alpha1.PlacementRootShard, "east", ""),
+			kc:      pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy},
+			inst:    instance("app", pmdeployv1alpha1.PlacementRootShard, "east", ""),
 			wantErr: "not supported yet",
 		},
 		{
 			name:    "unknown target",
-			kc:      pmdeployerv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployerv1alpha1.KubeconfigTarget("nowhere")},
-			inst:    instance("app", pmdeployerv1alpha1.PlacementRootShard, "east", ""),
+			kc:      pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTarget("nowhere")},
+			inst:    instance("app", pmdeployv1alpha1.PlacementRootShard, "east", ""),
 			wantErr: "unknown target",
 		},
 	}
@@ -184,10 +184,10 @@ func TestRootShardIssuer(t *testing.T) {
 // waiting for it is ordinary progress rather than a failure.
 func TestRequestHeaderCAPending(t *testing.T) {
 	sub, st := internalSubroutine(t, "rootshard#customer-a--east")
-	st.resolved = &module.Resolved{Module: &pmdeployerv1alpha1.Module{
+	st.resolved = &module.Resolved{Module: &pmdeployv1alpha1.Module{
 		ObjectMeta: metav1.ObjectMeta{Name: "acme", Namespace: "pm"},
 	}}
-	inst := instance("vw", pmdeployerv1alpha1.PlacementPerFrontProxy, "fp1", "")
+	inst := instance("vw", pmdeployv1alpha1.PlacementPerFrontProxy, "fp1", "")
 
 	err := sub.ensureRequestHeaderCA(context.Background(), st, inst)
 	require.ErrorIs(t, err, errRequestHeaderCAPending)
@@ -197,8 +197,8 @@ func TestRequestHeaderCAPending(t *testing.T) {
 // The mapping is templated per instance, so the backend is only known after
 // interpolation.
 func TestResolveMapping(t *testing.T) {
-	inst := instance("vw", pmdeployerv1alpha1.PlacementPerFrontProxy, "fp1", "")
-	inst.Component.Mapping = &pmdeployerv1alpha1.Mapping{
+	inst := instance("vw", pmdeployv1alpha1.PlacementPerFrontProxy, "fp1", "")
+	inst.Component.Mapping = &pmdeployv1alpha1.Mapping{
 		Path:    "/services/acme/",
 		Service: `${module + "-" + component}`,
 		Port:    8443,
@@ -218,8 +218,8 @@ func TestResolveMappingRejectsBadTemplates(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			inst := instance("vw", pmdeployerv1alpha1.PlacementPerFrontProxy, "fp1", "")
-			inst.Component.Mapping = &pmdeployerv1alpha1.Mapping{
+			inst := instance("vw", pmdeployv1alpha1.PlacementPerFrontProxy, "fp1", "")
+			inst.Component.Mapping = &pmdeployv1alpha1.Mapping{
 				Path: tt.path, Service: tt.service, Port: 8443,
 			}
 			_, err := resolveMapping(inst, celtemplate.Context{})

@@ -23,7 +23,7 @@ import (
 	"sort"
 	"strings"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/subroutines"
 
@@ -34,7 +34,7 @@ import (
 // Finalizer keeps a ModuleSetup until its kcp workspaces are gone. Workspaces
 // live inside kcp and have no owner on the config plane, so nothing else would
 // ever remove them.
-const Finalizer = "deployer.platform-mesh.io/module-workspaces"
+const Finalizer = "deploy.platform-mesh.io/module-workspaces"
 
 func (s *Subroutine) Finalizers(ctrlruntimeclient.Object) []string {
 	return []string{Finalizer}
@@ -43,9 +43,9 @@ func (s *Subroutine) Finalizers(ctrlruntimeclient.Object) []string {
 // Finalize deletes the module's workspaces, deepest first so a parent is never
 // removed while a child still exists.
 func (s *Subroutine) Finalize(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	setup := obj.(*pmdeployerv1alpha1.ModuleSetup)
+	setup := obj.(*pmdeployv1alpha1.ModuleSetup)
 
-	pm := &pmdeployerv1alpha1.PlatformMesh{}
+	pm := &pmdeployv1alpha1.PlatformMesh{}
 	key := ctrlruntimeclient.ObjectKey{Namespace: setup.Namespace, Name: setup.Spec.PlatformMeshRef.Name}
 	if err := s.client.Get(ctx, key, pm); err != nil {
 		// The whole installation is going away, so there is nothing left
@@ -78,7 +78,7 @@ func (s *Subroutine) Finalize(ctx context.Context, obj ctrlruntimeclient.Object)
 }
 
 // deepestFirst orders workspace paths so children are deleted before parents.
-func deepestFirst(workspaces []pmdeployerv1alpha1.ModuleSetupWorkspace) []string {
+func deepestFirst(workspaces []pmdeployv1alpha1.ModuleSetupWorkspace) []string {
 	paths := make([]string, 0, len(workspaces))
 	for _, ws := range workspaces {
 		paths = append(paths, ws.Path)

@@ -20,7 +20,7 @@ package ready
 import (
 	"context"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/subroutines"
 
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,7 +35,7 @@ func New() *Subroutine { return &Subroutine{} }
 func (s *Subroutine) GetName() string { return Name }
 
 func (s *Subroutine) Process(_ context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	pm := obj.(*pmdeployerv1alpha1.PlatformMesh)
+	pm := obj.(*pmdeployv1alpha1.PlatformMesh)
 	pm.Status.ResolvedVersion = pm.Spec.Version
 	return subroutines.OK(), nil
 }

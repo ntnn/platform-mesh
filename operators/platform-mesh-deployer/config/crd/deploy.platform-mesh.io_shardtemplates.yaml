@@ -17,24 +17,24 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.21.0
-  name: frontproxytemplates.deployer.platform-mesh.io
+  name: shardtemplates.deploy.platform-mesh.io
 spec:
-  group: deployer.platform-mesh.io
+  group: deploy.platform-mesh.io
   names:
-    kind: FrontProxyTemplate
-    listKind: FrontProxyTemplateList
-    plural: frontproxytemplates
+    kind: ShardTemplate
+    listKind: ShardTemplateList
+    plural: shardtemplates
     shortNames:
-    - fpt
-    singular: frontproxytemplate
+    - st
+    singular: shardtemplate
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
         description: |-
-          FrontProxyTemplate is merged onto the FrontProxy resources the deployer
-          renders. Deployer-owned fields win over template values.
+          ShardTemplate is merged onto the Shard resources the deployer renders.
+          Deployer-owned fields win over template values.
         properties:
           apiVersion:
             description: |-
@@ -54,38 +54,101 @@ spec:
           metadata:
             type: object
           spec:
-            description: |-
-              FrontProxyTemplateSpec mirrors FrontProxySpec with all fields optional.
-              The deprecated externalHostname field is intentionally not mirrored.
+            description: ShardTemplateSpec mirrors ShardSpec with all fields optional.
             properties:
-              additionalPathMappings:
-                description: 'Optional: AdditionalPathMappings configures // TODO
-                  ?'
-                items:
-                  description: so we have to copy the struct type
-                  properties:
-                    backend:
-                      type: string
-                    backend_server_ca:
-                      type: string
-                    path:
-                      type: string
-                    proxy_client_cert:
-                      type: string
-                    proxy_client_key:
-                      type: string
-                  required:
-                  - backend
-                  - backend_server_ca
-                  - path
-                  - proxy_client_cert
-                  - proxy_client_key
-                  type: object
-                type: array
+              audit:
+                properties:
+                  policy:
+                    description: Audit policy configuration.
+                    properties:
+                      configMap:
+                        description: |-
+                          ConfigMap is a reference to the ConfigMap containing the audit policy
+                          file which is mounted into the container.
+                        properties:
+                          key:
+                            description: Key in the data.
+                            type: string
+                          name:
+                            description: Name of the object.
+                            type: string
+                        required:
+                        - key
+                        - name
+                        type: object
+                    type: object
+                  webhook:
+                    properties:
+                      batchBufferSize:
+                        description: The size of the buffer to store events before
+                          batching and writing. Only used in batch mode.
+                        type: integer
+                      batchMaxSize:
+                        description: The maximum size of a batch. Only used in batch
+                          mode.
+                        type: integer
+                      batchMaxWait:
+                        description: |-
+                          The amount of time to wait before force writing the batch that hadn't reached the max size.
+                          Only used in batch mode.
+                        type: string
+                      batchThrottleBurst:
+                        description: |-
+                          Maximum number of requests sent at the same moment if ThrottleQPS was not utilized before.
+                          Only used in batch mode.
+                        type: integer
+                      batchThrottleEnable:
+                        description: Whether batching throttling is enabled. Only
+                          used in batch mode.
+                        type: boolean
+                      batchThrottleQPS:
+                        description: |-
+                          Maximum average number of batches per second. Only used in batch mode.
+                          This value is a floating point number, stored as a string (e.g. "3.1").
+                        type: string
+                      configSecretName:
+                        description: |-
+                          Name of a Kubernetes Secret that contains a kubeconfig formatted file that defines the
+                          audit webhook configuration.
+                        type: string
+                      initialBackoff:
+                        description: The amount of time to wait before retrying the
+                          first failed request.
+                        type: string
+                      mode:
+                        description: |-
+                          Strategy for sending audit events. Blocking indicates sending events should block server
+                          responses. Batch causes the backend to buffer and write events asynchronously.
+                        enum:
+                        - ""
+                        - batch
+                        - blocking
+                        - blocking-strict
+                        type: string
+                      truncateEnabled:
+                        description: Whether event and batch truncating is enabled.
+                        type: boolean
+                      truncateMaxBatchSize:
+                        description: |-
+                          Maximum size of the batch sent to the underlying backend. Actual serialized size can be
+                          several hundreds of bytes greater. If a batch exceeds this limit, it is split into several
+                          batches of smaller size.
+                        type: integer
+                      truncateMaxEventSize:
+                        description: |-
+                          Maximum size of the audit event sent to the underlying backend. If the size of an event
+                          is greater than this number, first request and response are removed, and if this doesn't
+                          reduce the size enough, event is discarded.
+                        type: integer
+                      version:
+                        description: API group and version used for serializing audit
+                          events written to webhook.
+                        type: string
+                    type: object
+                type: object
               auth:
-                description: |-
-                  Optional: Auth configures various aspects of Authentication and Authorization for this front-proxy instance.
-                  If OIDC is enabled, it also requires enabling ServiceAccount authentication (as front-proxy will start validating JWT tokens, which includes ServiceAccount tokens).
+                description: 'Optional: Auth configures various aspects of Authentication
+                  and Authorization for this shard.'
                 properties:
                   dropGroups:
                     description: 'Optional: DropGroups configures groups to be dropped
@@ -209,14 +272,46 @@ spec:
                     - configSecretName
                     type: object
                 type: object
+              authorization:
+                properties:
+                  webhook:
+                    properties:
+                      allowPaths:
+                        description: |-
+                          A list of HTTP paths to skip during authorization, i.e. these are authorized without contacting the 'core' kubernetes server.
+                          If specified, completely overwrites the default of [/healthz,/readyz,/livez].
+                        items:
+                          type: string
+                        type: array
+                      cacheAuthorizedTTL:
+                        description: The duration to cache 'authorized' responses
+                          from the webhook authorizer.
+                        type: string
+                      cacheUnauthorizedTTL:
+                        description: The duration to cache 'unauthorized' responses
+                          from the webhook authorizer.
+                        type: string
+                      configSecretName:
+                        description: |-
+                          Name of a Kubernetes Secret that contains a kubeconfig formatted file that defines the
+                          authorization webhook configuration.
+                        type: string
+                      version:
+                        description: The API version of the authorization.k8s.io SubjectAccessReview
+                          to send to and expect from the webhook.
+                        type: string
+                    type: object
+                type: object
               caBundleSecretRef:
                 description: |-
-                  CABundle references a v1.Secret object that contains the CA bundle
-                  that should be used to validate the API server's TLS certificate.
-                  The secret must contain a key named `tls.crt` that holds the PEM encoded CA certificate.
-                  It will be merged into the "external-logical-cluster-admin-kubeconfig" kubeconfig under the `certificate-authority-data` field.
-                  If not specified, the kubeconfig will use the CA bundle of the root shard or front-proxy referenced in the Target field.
-                  It will NOT be used to configure the API server's own TLS certificate or any other component.
+                  CABundle references a v1.Secret object that contains the CA bundle that should be used
+                  to validate the API server's TLS certificate. The secret must contain a key named `tls.crt`
+                  that holds the PEM encoded CA certificate. It will be merged into the
+                  "external-logical-cluster-admin-kubeconfig" kubeconfig under the `certificate-authority-data`
+                  field.
+                  If not specified, the kubeconfig will use the CA bundle of the root shard or front-proxy
+                  referenced in the Target field. It will NOT be used to configure the API server's own TLS
+                  certificate or any other component.
                 properties:
                   name:
                     default: ""
@@ -229,6 +324,26 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              cache:
+                description: |-
+                  Optional: Configure an external cache server for this shard. If not configured, the cache
+                  settings of the RootShard will be used.
+                properties:
+                  ref:
+                    description: Reference references a local CacheServer object.
+                    properties:
+                      name:
+                        default: ""
+                        description: |-
+                          Name of the referent.
+                          This field is effectively required, but due to backwards compatibility is
+                          allowed to be empty. Instances of this type with an empty value here are
+                          almost certainly wrong.
+                          More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                        type: string
+                    type: object
+                    x-kubernetes-map-type: atomic
+                type: object
               certificateTemplates:
                 additionalProperties:
                   properties:
@@ -439,16 +554,16 @@ spec:
                   type: object
                 description: |-
                   CertificateTemplates allows to customize the properties on the generated
-                  certificates for this front-proxy.
+                  certificates for this shard.
                 type: object
               clientCABundleRef:
                 description: |-
-                  ClientCABundleRef references a v1.Secret object that contains an additional client CA bundle
-                  that should be trusted by the front-proxy for client certificate authentication.
-                  The secret must contain a key named `tls.crt` that holds the PEM encoded CA certificate(s).
-                  This CA bundle will be merged with the root shard's client CA, allowing the front-proxy
-                  to accept client certificates signed by either CA. This is useful for backwards compatibility
-                  during upgrades when migrating from a separate front-proxy client CA to the shared root shard client CA.
+                  ClientCABundleRef references a v1.Secret containing an additional client CA bundle
+                  for client certificate authentication. The secret must contain a key named `tls.crt`.
+                  This CA bundle will be merged with the root shard's client CA.
+                  If configured on a RootShard, this bundle is automatically inherited by all FrontProxies,
+                  Shards, and VirtualWorkspaces connected to it. Each of those components can additionally
+                  specify their own ClientCABundleRef, which will be merged on top.
                 properties:
                   name:
                     default: ""
@@ -461,6 +576,10 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+              clusterDomain:
+                description: ClusterDomain is the DNS domain for services in the cluster.
+                  Defaults to "cluster.local" if not set.
+                type: string
               deploymentTemplate:
                 description: 'Optional: DeploymentTemplate configures the Kubernetes
                   Deployment created for this shard.'
@@ -1725,48 +1844,55 @@ spec:
                         type: object
                     type: object
                 type: object
-              external:
-                description: 'Optional: External configures how this front-proxy should
-                  be exposed to the outside world.  If empty, the RootShard''s external
-                  hostname will be used only.'
+              etcd:
+                description: Etcd configures the etcd cluster that this shard should
+                  be using.
                 properties:
-                  hostname:
-                    description: |-
-                      Hostname is the external name of the kcp instance. This should be matched by a DNS
-                      record pointing to the kcp-front-proxy Service's external IP address.
+                  endpoints:
+                    description: Endpoints is a list of http urls at which etcd nodes
+                      are available. The expected format is "https://etcd-hostname:2379".
+                    items:
+                      type: string
+                    type: array
+                  prefix:
+                    description: Prefix is the etcd key prefix under which the component
+                      stores its data. If unset, the components default prefix is
+                      used.
                     type: string
-                  port:
-                    format: int32
-                    type: integer
-                  privateHostname:
-                    description: |-
-                      Optional: PrivateHostname is an optional hostname that should be used to
-                      access internal front-proxy services, e.g. by other kcp components. This is helpful
-                      if you don't want to use the public hostname for internal communication, e.g.
-                      You have a DNS configuration, where DNS is re-encrypted for external access, but
-                      internal components can access the front-proxy directly. If not set, the value of `hostname` is used.
-                    type: string
-                  privatePort:
-                    description: |-
-                      Optional: PrivatePort is an optional port that should be used to
-                      access internal front-proxy services, e.g. by other kcp components. This is helpful
-                      if you don't want to use the public port for internal communication, e.g.
-                      because it is firewalled. If not set, the value of `port` is used.
-                    format: int32
-                    type: integer
+                  tlsConfig:
+                    description: ClientCert configures the client certificate used
+                      to access etcd.
+                    properties:
+                      secretRef:
+                        description: SecretRef is the reference to a v1.Secret object
+                          that contains the TLS certificate.
+                        properties:
+                          name:
+                            default: ""
+                            description: |-
+                              Name of the referent.
+                              This field is effectively required, but due to backwards compatibility is
+                              allowed to be empty. Instances of this type with an empty value here are
+                              almost certainly wrong.
+                              More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    required:
+                    - secretRef
+                    type: object
                 required:
-                - hostname
-                - port
+                - endpoints
                 type: object
               extraArgs:
                 description: 'Optional: ExtraArgs defines additional command line
-                  arguments to pass to the front-proxy container.'
+                  arguments to pass to the shard container.'
                 items:
                   type: string
                 type: array
               image:
-                description: 'Optional: Image defines the image to use. Defaults to
-                  the latest versioned image during the release of kcp-operator.'
+                description: ImageSpec defines settings for using a specific image
+                  and overwriting the default images used.
                 properties:
                   imagePullSecrets:
                     description: 'Optional: ImagePullSecrets is a list of secret references
@@ -1798,9 +1924,27 @@ spec:
                       Defaults to the latest kcp release that the operator supports.
                     type: string
                 type: object
+              kcpVirtualWorkspace:
+                description: |-
+                  Optionally the kcp virtual-workspace can be deployed standalone. In this case, the Shard or
+                  RootShard will need to be configured to point to the VirtualWorkspace that serve the kcp
+                  virtual workspaces (apiexport, initializingworkspaces etc.). If this field is left blank, kcp
+                  the kcp-operator assumes that the in-process virtual workspace should be enabled on this shard.
+                properties:
+                  name:
+                    default: ""
+                    description: |-
+                      Name of the referent.
+                      This field is effectively required, but due to backwards compatibility is
+                      allowed to be empty. Instances of this type with an empty value here are
+                      almost certainly wrong.
+                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               logging:
                 description: 'Optional: Logging configures the logging settings for
-                  the front-proxy.'
+                  the shard.'
                 properties:
                   level:
                     description: |-
@@ -1811,8 +1955,8 @@ spec:
                     type: integer
                 type: object
               replicas:
-                description: 'Optional: Replicas configures the replica count for
-                  the front-proxy Deployment.'
+                description: Replicas configures how many instances of this shard
+                  run in parallel. Defaults to 2 if not set.
                 format: int32
                 type: integer
               resources:
@@ -1876,8 +2020,6 @@ spec:
                     type: object
                 type: object
               rootShard:
-                description: RootShard configures the kcp root shard that this front-proxy
-                  instance should connect to.
                 properties:
                   ref:
                     description: Reference references a local RootShard object.
@@ -1896,7 +2038,7 @@ spec:
                 type: object
               serviceTemplate:
                 description: 'Optional: ServiceTemplate configures the Kubernetes
-                  Service created for this front-proxy instance.'
+                  Service created for this shard.'
                 properties:
                   metadata:
                     description: |-
@@ -1926,6 +2068,11 @@ spec:
                         type: string
                     type: object
                 type: object
+              shardBaseURL:
+                description: |-
+                  ShardBaseURL is the base URL under which this shard should be reachable. This is used to configure
+                  the external URL. If not provided, the operator will use kubernetes service address to generate it.
+                type: string
             type: object
         type: object
     served: true

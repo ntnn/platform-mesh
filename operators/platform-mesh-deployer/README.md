@@ -1,7 +1,7 @@
 # platform-mesh-deployer
 
 Operator that deploys and manages Platform Mesh installations on a management
-cluster. It reconciles the `deployer.platform-mesh.io/v1alpha1` resources
+cluster. It reconciles the `deploy.platform-mesh.io/v1alpha1` resources
 (`PlatformMesh`, `Module`, `ModuleSetup`) defined in the shared
 [`apis`](../../apis) module.
 

@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"time"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
@@ -88,7 +88,7 @@ func (s *Subroutine) ensureKubeconfigs(ctx context.Context, st *state, inst modu
 
 // syncKubeconfig copies a minted kubeconfig secret to the component's cluster,
 // renaming it to the cluster-local name the payload references.
-func (s *Subroutine) syncKubeconfig(ctx context.Context, st *state, inst module.Instance, kc pmdeployerv1alpha1.ModuleKubeconfig, minted string) error {
+func (s *Subroutine) syncKubeconfig(ctx context.Context, st *state, inst module.Instance, kc pmdeployv1alpha1.ModuleKubeconfig, minted string) error {
 	mod := st.resolved.Module
 
 	src := &corev1.Secret{}
@@ -121,11 +121,11 @@ func (s *Subroutine) syncKubeconfig(ctx context.Context, st *state, inst module.
 }
 
 // kubeconfigTarget resolves which kcp endpoint a kubeconfig is minted against.
-func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployerv1alpha1.ModuleKubeconfig, inst module.Instance) (operatorv1alpha1.KubeconfigTarget, error) {
+func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployv1alpha1.ModuleKubeconfig, inst module.Instance) (operatorv1alpha1.KubeconfigTarget, error) {
 	pm := st.platformMesh
 
 	switch kc.Target {
-	case pmdeployerv1alpha1.KubeconfigTargetFrontProxy:
+	case pmdeployv1alpha1.KubeconfigTargetFrontProxy:
 		name, err := s.singleTarget(pm.Name, components.FrontProxy, kc.Name, func(clusterID string) string {
 			return names.FrontProxy(pm.Name, pm.Spec.Topology.FrontProxy.Name, clusterID)
 		})
@@ -134,7 +134,7 @@ func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployerv1alpha1.ModuleKub
 		}
 		return operatorv1alpha1.KubeconfigTarget{FrontProxyRef: &corev1.LocalObjectReference{Name: name}}, nil
 
-	case pmdeployerv1alpha1.KubeconfigTargetRootShard:
+	case pmdeployv1alpha1.KubeconfigTargetRootShard:
 		name, err := s.singleTarget(pm.Name, components.RootShard, kc.Name, func(clusterID string) string {
 			return names.RootShard(pm.Name, pm.Spec.Topology.RootShard.Name, clusterID)
 		})
@@ -143,7 +143,7 @@ func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployerv1alpha1.ModuleKub
 		}
 		return operatorv1alpha1.KubeconfigTarget{RootShardRef: &corev1.LocalObjectReference{Name: name}}, nil
 
-	case pmdeployerv1alpha1.KubeconfigTargetShard:
+	case pmdeployv1alpha1.KubeconfigTargetShard:
 		// A shard kubeconfig belongs to the shard the instance runs
 		// beside, which the placement validation guarantees exists.
 		if inst.ShardGroup == "" {

@@ -19,7 +19,7 @@ package controller
 import (
 	"context"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -38,18 +38,18 @@ var templateKinds = []struct {
 	kind string
 	obj  func() ctrlruntimeclient.Object
 }{
-	{"RootShardTemplate", func() ctrlruntimeclient.Object { return &pmdeployerv1alpha1.RootShardTemplate{} }},
-	{"ShardTemplate", func() ctrlruntimeclient.Object { return &pmdeployerv1alpha1.ShardTemplate{} }},
-	{"FrontProxyTemplate", func() ctrlruntimeclient.Object { return &pmdeployerv1alpha1.FrontProxyTemplate{} }},
-	{"CacheServerTemplate", func() ctrlruntimeclient.Object { return &pmdeployerv1alpha1.CacheServerTemplate{} }},
-	{"VirtualWorkspaceTemplate", func() ctrlruntimeclient.Object { return &pmdeployerv1alpha1.VirtualWorkspaceTemplate{} }},
+	{"RootShardTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.RootShardTemplate{} }},
+	{"ShardTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.ShardTemplate{} }},
+	{"FrontProxyTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.FrontProxyTemplate{} }},
+	{"CacheServerTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.CacheServerTemplate{} }},
+	{"VirtualWorkspaceTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.VirtualWorkspaceTemplate{} }},
 }
 
 // templateRefs are the templates a PlatformMesh references, with a nil
 // namespace on a reference defaulted to the PlatformMesh's own.
-func templateRefs(pm *pmdeployerv1alpha1.PlatformMesh) map[templateKey]struct{} {
+func templateRefs(pm *pmdeployv1alpha1.PlatformMesh) map[templateKey]struct{} {
 	out := map[templateKey]struct{}{}
-	add := func(kind string, ref *pmdeployerv1alpha1.TemplateReference) {
+	add := func(kind string, ref *pmdeployv1alpha1.TemplateReference) {
 		if ref == nil {
 			return
 		}
@@ -76,12 +76,12 @@ func templateRefs(pm *pmdeployerv1alpha1.PlatformMesh) map[templateKey]struct{} 
 
 // platformMeshesUsing lists the PlatformMeshes referencing a template. A
 // template is shared, so this is not limited to one.
-func platformMeshesUsing(ctx context.Context, c ctrlruntimeclient.Client, key templateKey) ([]pmdeployerv1alpha1.PlatformMesh, error) {
-	list := &pmdeployerv1alpha1.PlatformMeshList{}
+func platformMeshesUsing(ctx context.Context, c ctrlruntimeclient.Client, key templateKey) ([]pmdeployv1alpha1.PlatformMesh, error) {
+	list := &pmdeployv1alpha1.PlatformMeshList{}
 	if err := c.List(ctx, list); err != nil {
 		return nil, err
 	}
-	var out []pmdeployerv1alpha1.PlatformMesh
+	var out []pmdeployv1alpha1.PlatformMesh
 	for i := range list.Items {
 		if _, ok := templateRefs(&list.Items[i])[key]; ok {
 			out = append(out, list.Items[i])
@@ -94,7 +94,7 @@ func platformMeshesUsing(ctx context.Context, c ctrlruntimeclient.Client, key te
 // given kind it references, so they can pick up or drop the in-use finalizer.
 func enqueueTemplatesOfPlatformMesh(kind string) handler.MapFunc {
 	return func(_ context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
-		pm, ok := obj.(*pmdeployerv1alpha1.PlatformMesh)
+		pm, ok := obj.(*pmdeployv1alpha1.PlatformMesh)
 		if !ok {
 			return nil
 		}

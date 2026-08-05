@@ -24,7 +24,7 @@ import (
 	"errors"
 	"fmt"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
@@ -41,7 +41,7 @@ import (
 // driven from a single Process instead of one subroutine per step.
 type state struct {
 	resolved     *module.Resolved
-	platformMesh *pmdeployerv1alpha1.PlatformMesh
+	platformMesh *pmdeployv1alpha1.PlatformMesh
 	instances    []module.Instance
 	// endpoints are published by the provisioner once the kcp side is done.
 	endpoints map[string]string
@@ -70,7 +70,7 @@ func New(client ctrlruntimeclient.Client, registry *clusters.Registry, resolver 
 func (s *Subroutine) GetName() string { return Name }
 
 func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	mod := obj.(*pmdeployerv1alpha1.Module)
+	mod := obj.(*pmdeployv1alpha1.Module)
 
 	if err := validate(mod); err != nil {
 		setCondition(mod, ConditionGated, metav1.ConditionFalse, "Invalid", err.Error())
@@ -88,7 +88,7 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 
 	// A pre-topology module has to be deployable before kcp exists, since
 	// the topology waits for it; only post-topology modules wait for kcp.
-	if mod.Spec.Stage == pmdeployerv1alpha1.StagePostTopology {
+	if mod.Spec.Stage == pmdeployv1alpha1.StagePostTopology {
 		if ready, reason := topologyReady(pm); !ready {
 			setCondition(mod, ConditionGated, metav1.ConditionFalse, "WaitingForTopology", reason)
 			return subroutines.StopWithRequeue(requeueWait, reason), nil
@@ -139,8 +139,8 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 }
 
 // platformMesh fetches the Module's PlatformMesh.
-func (s *Subroutine) platformMesh(ctx context.Context, mod *pmdeployerv1alpha1.Module) (*pmdeployerv1alpha1.PlatformMesh, error) {
-	pm := &pmdeployerv1alpha1.PlatformMesh{}
+func (s *Subroutine) platformMesh(ctx context.Context, mod *pmdeployv1alpha1.Module) (*pmdeployv1alpha1.PlatformMesh, error) {
+	pm := &pmdeployv1alpha1.PlatformMesh{}
 	key := ctrlruntimeclient.ObjectKey{Namespace: mod.Namespace, Name: mod.Spec.PlatformMeshRef.Name}
 	if err := s.client.Get(ctx, key, pm); err != nil {
 		return nil, fmt.Errorf("getting PlatformMesh %q: %w", key.Name, err)
@@ -149,7 +149,7 @@ func (s *Subroutine) platformMesh(ctx context.Context, mod *pmdeployerv1alpha1.M
 }
 
 // topologyReady reports whether the PlatformMesh has finished bringing kcp up.
-func topologyReady(pm *pmdeployerv1alpha1.PlatformMesh) (bool, string) {
+func topologyReady(pm *pmdeployv1alpha1.PlatformMesh) (bool, string) {
 	cond := meta.FindStatusCondition(pm.Status.Conditions, "Ready")
 	if cond == nil {
 		return false, fmt.Sprintf("PlatformMesh %q has no Ready condition yet", pm.Name)
@@ -161,12 +161,12 @@ func topologyReady(pm *pmdeployerv1alpha1.PlatformMesh) (bool, string) {
 }
 
 // dependenciesReady reports whether every Module in spec.dependsOn is ready.
-func (s *Subroutine) dependenciesReady(ctx context.Context, mod *pmdeployerv1alpha1.Module) (bool, string) {
+func (s *Subroutine) dependenciesReady(ctx context.Context, mod *pmdeployv1alpha1.Module) (bool, string) {
 	for _, ref := range mod.Spec.DependsOn {
 		if ref.Name == mod.Name {
 			return false, fmt.Sprintf("module %q depends on itself", mod.Name)
 		}
-		dep := &pmdeployerv1alpha1.Module{}
+		dep := &pmdeployv1alpha1.Module{}
 		key := ctrlruntimeclient.ObjectKey{Namespace: mod.Namespace, Name: ref.Name}
 		if err := s.client.Get(ctx, key, dep); err != nil {
 			if apierrors.IsNotFound(err) {
@@ -177,7 +177,7 @@ func (s *Subroutine) dependenciesReady(ctx context.Context, mod *pmdeployerv1alp
 		if dep.Spec.PlatformMeshRef.Name != mod.Spec.PlatformMeshRef.Name {
 			return false, fmt.Sprintf("dependency %q belongs to another PlatformMesh", ref.Name)
 		}
-		if mod.Spec.Stage == pmdeployerv1alpha1.StagePreTopology && dep.Spec.Stage == pmdeployerv1alpha1.StagePostTopology {
+		if mod.Spec.Stage == pmdeployv1alpha1.StagePreTopology && dep.Spec.Stage == pmdeployv1alpha1.StagePostTopology {
 			return false, fmt.Sprintf("pre-topology module %q cannot depend on post-topology module %q", mod.Name, ref.Name)
 		}
 		if !meta.IsStatusConditionTrue(dep.Status.Conditions, "Ready") {
@@ -187,7 +187,7 @@ func (s *Subroutine) dependenciesReady(ctx context.Context, mod *pmdeployerv1alp
 	return true, ""
 }
 
-func setCondition(mod *pmdeployerv1alpha1.Module, condType string, status metav1.ConditionStatus, reason, message string) {
+func setCondition(mod *pmdeployv1alpha1.Module, condType string, status metav1.ConditionStatus, reason, message string) {
 	meta.SetStatusCondition(&mod.Status.Conditions, metav1.Condition{
 		Type:               condType,
 		Status:             status,

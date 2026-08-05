@@ -6,21 +6,21 @@ metadata:
   name: manager-role
 rules:
   - apiGroups:
-      - deployer.platform-mesh.io
+      - deploy.platform-mesh.io
     resources:
       - platformmeshes
       - modules
       - modulesetups
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   - apiGroups:
-      - deployer.platform-mesh.io
+      - deploy.platform-mesh.io
     resources:
       - platformmeshes/status
       - modules/status
       - modulesetups/status
     verbs: ["get", "update", "patch"]
   - apiGroups:
-      - deployer.platform-mesh.io
+      - deploy.platform-mesh.io
     resources:
       - platformmeshes/finalizers
       - modules/finalizers
@@ -29,7 +29,7 @@ rules:
 
   # Templates are read by the topology and held by a finalizer while in use.
   - apiGroups:
-      - deployer.platform-mesh.io
+      - deploy.platform-mesh.io
     resources:
       - rootshardtemplates
       - shardtemplates

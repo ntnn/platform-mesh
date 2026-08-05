@@ -28,7 +28,7 @@ import (
 	"strings"
 	"time"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	pmocm "go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
@@ -63,9 +63,9 @@ func New(client ctrlruntimeclient.Client, access *kcp.Access, resolver pmocm.Res
 func (s *Subroutine) GetName() string { return Name }
 
 func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	setup := obj.(*pmdeployerv1alpha1.ModuleSetup)
+	setup := obj.(*pmdeployv1alpha1.ModuleSetup)
 
-	pm := &pmdeployerv1alpha1.PlatformMesh{}
+	pm := &pmdeployv1alpha1.PlatformMesh{}
 	key := ctrlruntimeclient.ObjectKey{Namespace: setup.Namespace, Name: setup.Spec.PlatformMeshRef.Name}
 	if err := s.client.Get(ctx, key, pm); err != nil {
 		return subroutines.Result{}, fmt.Errorf("getting PlatformMesh %q: %w", key.Name, err)
@@ -111,7 +111,7 @@ func (s *Subroutine) Process(ctx context.Context, obj ctrlruntimeclient.Object) 
 // module's payload can address its own kcp workspaces without knowing how the
 // front proxy is exposed. The module workspace is published as "workspace";
 // children keep their own name.
-func workspaceEndpoints(host string, workspaces []pmdeployerv1alpha1.ModuleSetupWorkspace) map[string]string {
+func workspaceEndpoints(host string, workspaces []pmdeployv1alpha1.ModuleSetupWorkspace) map[string]string {
 	if len(workspaces) == 0 {
 		return nil
 	}
@@ -133,7 +133,7 @@ func workspaceEndpoints(host string, workspaces []pmdeployerv1alpha1.ModuleSetup
 }
 
 // applyContent applies the manifests declared for one workspace into it.
-func (s *Subroutine) applyContent(ctx context.Context, setup *pmdeployerv1alpha1.ModuleSetup, client ctrlruntimeclient.Client, ws pmdeployerv1alpha1.ModuleSetupWorkspace) error {
+func (s *Subroutine) applyContent(ctx context.Context, setup *pmdeployv1alpha1.ModuleSetup, client ctrlruntimeclient.Client, ws pmdeployv1alpha1.ModuleSetupWorkspace) error {
 	if len(ws.Content) == 0 {
 		return nil
 	}
@@ -170,14 +170,14 @@ func (s *Subroutine) applyContent(ctx context.Context, setup *pmdeployerv1alpha1
 }
 
 // resolveModule fetches the component version the setup belongs to.
-func (s *Subroutine) resolveModule(ctx context.Context, setup *pmdeployerv1alpha1.ModuleSetup) (*module.Resolved, error) {
-	mod := &pmdeployerv1alpha1.Module{}
+func (s *Subroutine) resolveModule(ctx context.Context, setup *pmdeployv1alpha1.ModuleSetup) (*module.Resolved, error) {
+	mod := &pmdeployv1alpha1.Module{}
 	key := ctrlruntimeclient.ObjectKey{Namespace: setup.Namespace, Name: setup.Spec.ModuleRef.Name}
 	if err := s.client.Get(ctx, key, mod); err != nil {
 		return nil, fmt.Errorf("getting Module %q: %w", key.Name, err)
 	}
 
-	pm := &pmdeployerv1alpha1.PlatformMesh{}
+	pm := &pmdeployv1alpha1.PlatformMesh{}
 	pmKey := ctrlruntimeclient.ObjectKey{Namespace: setup.Namespace, Name: setup.Spec.PlatformMeshRef.Name}
 	if err := s.client.Get(ctx, pmKey, pm); err != nil {
 		return nil, fmt.Errorf("getting PlatformMesh %q: %w", pmKey.Name, err)
@@ -190,7 +190,7 @@ func (s *Subroutine) resolveModule(ctx context.Context, setup *pmdeployerv1alpha
 	return resolved, nil
 }
 
-func (s *Subroutine) pending(setup *pmdeployerv1alpha1.ModuleSetup, reason, message string) (subroutines.Result, error) {
+func (s *Subroutine) pending(setup *pmdeployv1alpha1.ModuleSetup, reason, message string) (subroutines.Result, error) {
 	meta.SetStatusCondition(&setup.Status.Conditions, metav1.Condition{
 		Type:               ConditionReady,
 		Status:             metav1.ConditionFalse,

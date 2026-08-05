@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pmdeployerv1alpha1 "go.platform-mesh.io/apis/deployer/v1alpha1"
+	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
@@ -51,8 +51,8 @@ spec:
 
 func TestResolve(t *testing.T) {
 	cv := newFakeCV(map[string]string{"agent-manifests": deploymentManifest})
-	mod := moduleWith(component("agent", pmdeployerv1alpha1.PlacementPerShard))
-	fallback := &pmdeployerv1alpha1.OCMRepository{URL: "http://registry:5000"}
+	mod := moduleWith(component("agent", pmdeployv1alpha1.PlacementPerShard))
+	fallback := &pmdeployv1alpha1.OCMRepository{URL: "http://registry:5000"}
 
 	resolver := &fakeResolver{cv: cv}
 	got, err := module.Resolve(t.Context(), resolver, mod, fallback)
@@ -62,37 +62,37 @@ func TestResolve(t *testing.T) {
 }
 
 func TestResolveUsesModuleRepository(t *testing.T) {
-	mod := moduleWith(component("agent", pmdeployerv1alpha1.PlacementPerShard))
-	mod.Spec.OCM = &pmdeployerv1alpha1.OCMRepository{URL: "http://own:5000"}
+	mod := moduleWith(component("agent", pmdeployv1alpha1.PlacementPerShard))
+	mod.Spec.OCM = &pmdeployv1alpha1.OCMRepository{URL: "http://own:5000"}
 
 	resolver := &fakeResolver{cv: newFakeCV(map[string]string{"agent-manifests": deploymentManifest})}
-	_, err := module.Resolve(t.Context(), resolver, mod, &pmdeployerv1alpha1.OCMRepository{URL: "http://fallback:5000"})
+	_, err := module.Resolve(t.Context(), resolver, mod, &pmdeployv1alpha1.OCMRepository{URL: "http://fallback:5000"})
 	require.NoError(t, err)
 	assert.Equal(t, "http://own:5000", resolver.gotURL)
 }
 
 func TestResolveErrors(t *testing.T) {
-	comp := component("agent", pmdeployerv1alpha1.PlacementPerShard)
+	comp := component("agent", pmdeployv1alpha1.PlacementPerShard)
 
 	tests := []struct {
 		name     string
 		resolver *fakeResolver
-		fallback *pmdeployerv1alpha1.OCMRepository
+		fallback *pmdeployv1alpha1.OCMRepository
 	}{
 		{
 			name:     "component version not found",
 			resolver: &fakeResolver{err: ocm.ErrNotFound},
-			fallback: &pmdeployerv1alpha1.OCMRepository{URL: "http://registry:5000"},
+			fallback: &pmdeployv1alpha1.OCMRepository{URL: "http://registry:5000"},
 		},
 		{
 			name:     "resolver failure",
 			resolver: &fakeResolver{err: errors.New("boom")},
-			fallback: &pmdeployerv1alpha1.OCMRepository{URL: "http://registry:5000"},
+			fallback: &pmdeployv1alpha1.OCMRepository{URL: "http://registry:5000"},
 		},
 		{
 			name:     "declared resource missing from the component version",
 			resolver: &fakeResolver{cv: newFakeCV(map[string]string{"other": "{}"})},
-			fallback: &pmdeployerv1alpha1.OCMRepository{URL: "http://registry:5000"},
+			fallback: &pmdeployv1alpha1.OCMRepository{URL: "http://registry:5000"},
 		},
 		{
 			name:     "no repository at all",
@@ -109,10 +109,10 @@ func TestResolveErrors(t *testing.T) {
 }
 
 // resolvedFor builds a Resolved plus the single instance of its component.
-func resolvedFor(t *testing.T, mod *pmdeployerv1alpha1.Module, contents map[string]string, engaged string) (*module.Resolved, module.Instance) {
+func resolvedFor(t *testing.T, mod *pmdeployv1alpha1.Module, contents map[string]string, engaged string) (*module.Resolved, module.Instance) {
 	t.Helper()
 	resolver := &fakeResolver{cv: newFakeCV(contents)}
-	resolved, err := module.Resolve(t.Context(), resolver, mod, &pmdeployerv1alpha1.OCMRepository{URL: "http://registry:5000"})
+	resolved, err := module.Resolve(t.Context(), resolver, mod, &pmdeployv1alpha1.OCMRepository{URL: "http://registry:5000"})
 	require.NoError(t, err)
 
 	reg := clusters.NewRegistry()
@@ -124,7 +124,7 @@ func resolvedFor(t *testing.T, mod *pmdeployerv1alpha1.Module, contents map[stri
 }
 
 func TestRender(t *testing.T) {
-	mod := moduleWith(component("agent", pmdeployerv1alpha1.PlacementPerShard))
+	mod := moduleWith(component("agent", pmdeployv1alpha1.PlacementPerShard))
 	mod.Spec.Values = &apiextensionsv1.JSON{Raw: []byte(`{"replicas":3,"image":"acme:1.2"}`)}
 
 	resolved, inst := resolvedFor(t, mod,
@@ -190,7 +190,7 @@ metadata:
   name: ${module}-svc
 ---
 `
-	mod := moduleWith(component("agent", pmdeployerv1alpha1.PlacementPerShard))
+	mod := moduleWith(component("agent", pmdeployv1alpha1.PlacementPerShard))
 	resolved, inst := resolvedFor(t, mod,
 		map[string]string{"agent-manifests": manifest},
 		"shards-default#customer-a--s1")
@@ -210,7 +210,7 @@ metadata:
   name: pinned
   namespace: kube-system
 `
-	mod := moduleWith(component("agent", pmdeployerv1alpha1.PlacementPerShard))
+	mod := moduleWith(component("agent", pmdeployv1alpha1.PlacementPerShard))
 	resolved, inst := resolvedFor(t, mod,
 		map[string]string{"agent-manifests": manifest},
 		"shards-default#customer-a--s1")
@@ -231,7 +231,7 @@ func TestRenderErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mod := moduleWith(component("agent", pmdeployerv1alpha1.PlacementPerShard))
+			mod := moduleWith(component("agent", pmdeployv1alpha1.PlacementPerShard))
 			resolved, inst := resolvedFor(t, mod,
 				map[string]string{"agent-manifests": tt.manifest},
 				"shards-default#customer-a--s1")
@@ -243,7 +243,7 @@ func TestRenderErrors(t *testing.T) {
 }
 
 func TestValues(t *testing.T) {
-	mod := moduleWith(component("agent", pmdeployerv1alpha1.PlacementPerShard))
+	mod := moduleWith(component("agent", pmdeployv1alpha1.PlacementPerShard))
 	resolved, _ := resolvedFor(t, mod,
 		map[string]string{"agent-manifests": "{}"},
 		"shards-default#customer-a--s1")
@@ -263,7 +263,7 @@ func TestValues(t *testing.T) {
 }
 
 func TestSelectors(t *testing.T) {
-	mod := moduleWith(component("agent", pmdeployerv1alpha1.PlacementPerShard))
+	mod := moduleWith(component("agent", pmdeployv1alpha1.PlacementPerShard))
 	resolved, inst := resolvedFor(t, mod,
 		map[string]string{"agent-manifests": "{}"},
 		"shards-default#customer-a--s1")
