@@ -75,25 +75,54 @@ func FrontProxyDialer(t *testing.T, c *Cluster) func(context.Context, string, st
 }
 
 // lazyDialer dials target on c through a port-forward set up on first use.
+//
+// A forward pins one pod, and the deployer rolls the front proxy whenever a
+// module publishes a path mapping, so the pinned pod is deleted mid-test. A
+// failed dial therefore re-establishes the forward instead of failing for the
+// rest of the test.
 func lazyDialer(t *testing.T, c *Cluster, target forwardTarget) func(context.Context, string, string) (net.Conn, error) {
 	t.Helper()
 	var (
 		mu   sync.Mutex
 		addr string
 	)
-	return func(ctx context.Context, _, _ string) (net.Conn, error) {
+	take := func() (string, error) {
 		mu.Lock()
+		defer mu.Unlock()
 		if addr == "" {
 			forwarded, err := forward(t, c, target)
 			if err != nil {
-				mu.Unlock()
-				return nil, err
+				return "", err
 			}
 			addr = forwarded
 		}
-		local := addr
-		mu.Unlock()
-		return (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", local)
+		return addr, nil
+	}
+	drop := func(stale string) {
+		mu.Lock()
+		defer mu.Unlock()
+		if addr == stale {
+			addr = ""
+		}
+	}
+
+	return func(ctx context.Context, _, _ string) (net.Conn, error) {
+		var err error
+		for range 2 {
+			var local string
+			if local, err = take(); err != nil {
+				return nil, err
+			}
+			var conn net.Conn
+			if conn, err = (&net.Dialer{Timeout: 10 * time.Second}).DialContext(ctx, "tcp", local); err == nil {
+				return conn, nil
+			}
+			drop(local)
+			if ctx.Err() != nil {
+				break
+			}
+		}
+		return nil, err
 	}
 }
 
