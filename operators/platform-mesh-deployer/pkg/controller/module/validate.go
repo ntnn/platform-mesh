@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package module
 
 import (
 	"context"
@@ -25,7 +25,6 @@ import (
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // validate rejects a Module whose references cannot be satisfied. These are
@@ -71,19 +70,20 @@ func validate(mod *pmdeployv1alpha1.Module) error {
 
 // detectCycle walks the dependency graph of the module's PlatformMesh and
 // reports the cycle the module takes part in, if any. Without this two modules
-// depending on each other would requeue forever instead of failing.
-func (s *Subroutine) detectCycle(ctx context.Context, mod *pmdeployv1alpha1.Module) error {
-	list := &pmdeployv1alpha1.ModuleList{}
-	if err := s.client.List(ctx, list, ctrlruntimeclient.InNamespace(mod.Namespace)); err != nil {
+// depending on each other would requeue forever instead of failing. The two
+// errors are returned separately because only the cycle is terminal.
+func (r *reconciler) detectCycle(ctx context.Context, mod *pmdeployv1alpha1.Module) (cycle error, err error) {
+	list, err := r.opts.ListModules(ctx, mod.Namespace)
+	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil
+			return nil, nil
 		}
-		return fmt.Errorf("listing modules: %w", err)
+		return nil, fmt.Errorf("listing modules: %w", err)
 	}
 
 	deps := map[string][]string{}
-	for i := range list.Items {
-		m := &list.Items[i]
+	for i := range list {
+		m := &list[i]
 		if m.Spec.PlatformMeshRef.Name != mod.Spec.PlatformMeshRef.Name {
 			continue
 		}
@@ -116,7 +116,7 @@ func (s *Subroutine) detectCycle(ctx context.Context, mod *pmdeployv1alpha1.Modu
 		done[name] = struct{}{}
 		return nil
 	}
-	return walk(mod.Name, nil)
+	return walk(mod.Name, nil), nil
 }
 
 // cyclePath renders the cycle, starting where it closes.

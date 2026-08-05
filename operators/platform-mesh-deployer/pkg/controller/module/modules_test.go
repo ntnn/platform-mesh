@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules_test
+package module
 
 import (
 	"context"
@@ -30,9 +30,8 @@ import (
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	pmmodule "go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/modules"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -158,15 +157,14 @@ func testModule() *pmdeployv1alpha1.Module {
 	}
 }
 
-func newSubroutine(t *testing.T, objs []ctrlruntimeclient.Object, reg *clusters.Registry) *modules.Subroutine {
-	t.Helper()
-	local := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(objs...).Build()
-	return newSubroutineWithClient(t, local, reg)
+func testResolver() ocm.Resolver {
+	return &fakeResolver{cv: &fakeCV{contents: map[string]string{"agent-manifests": agentManifest}}}
 }
 
-func newSubroutineWithClient(t *testing.T, local ctrlruntimeclient.Client, reg *clusters.Registry) *modules.Subroutine {
+func newTestReconciler(t *testing.T, objs []ctrlruntimeclient.Object, reg *clusters.Registry, mod *pmdeployv1alpha1.Module) *reconciler {
 	t.Helper()
-	return modules.New(local, reg, &fakeResolver{cv: &fakeCV{contents: map[string]string{"agent-manifests": agentManifest}}})
+	local := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(objs...).Build()
+	return newReconciler(t, local, reg, testResolver(), mod)
 }
 
 func TestProcessDeploys(t *testing.T) {
@@ -177,15 +175,13 @@ func TestProcessDeploys(t *testing.T) {
 	reg := clusters.NewRegistry()
 	engage(t, reg, "shards-default#customer-a--s1", workload)
 
-	sub := newSubroutine(t, []ctrlruntimeclient.Object{pm, mod}, reg)
-	res, err := sub.Process(t.Context(), mod)
-	require.NoError(t, err)
-	assert.True(t, res.IsContinue())
+	r := newTestReconciler(t, []ctrlruntimeclient.Object{pm, mod}, reg, mod)
+	require.NoError(t, r.run(t.Context()))
 
 	// The rendered Service and the generated ConfigMap landed on the shard.
 	svc := &corev1.Service{}
 	require.NoError(t, workload.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "acme-system", Name: "acme-agent"}, svc))
-	assert.Equal(t, "acme", svc.Labels[module.LabelModule])
+	assert.Equal(t, "acme", svc.Labels[pmmodule.LabelModule])
 
 	cm := &corev1.ConfigMap{}
 	require.NoError(t, workload.Get(t.Context(), ctrlruntimeclient.ObjectKey{Namespace: "acme-system", Name: "acme-agent"}, cm))
@@ -195,7 +191,7 @@ func TestProcessDeploys(t *testing.T) {
 	assert.Equal(t, "agent", mod.Status.Components[0].Name)
 	require.Len(t, mod.Status.Components[0].Instances, 1)
 	assert.Equal(t, "s1", mod.Status.Components[0].Instances[0].Cluster)
-	assert.True(t, meta.IsStatusConditionTrue(mod.Status.Conditions, modules.ConditionDeployed))
+	assert.True(t, meta.IsStatusConditionTrue(mod.Status.Conditions, ConditionDeployed))
 }
 
 func TestProcessWaitsForTopology(t *testing.T) {
@@ -203,15 +199,16 @@ func TestProcessWaitsForTopology(t *testing.T) {
 	pm := platformMesh(false)
 
 	reg := clusters.NewRegistry()
-	sub := newSubroutine(t, []ctrlruntimeclient.Object{pm, mod}, reg)
+	r := newTestReconciler(t, []ctrlruntimeclient.Object{pm, mod}, reg, mod)
 
-	res, err := sub.Process(t.Context(), mod)
+	err := r.run(t.Context())
 	require.NoError(t, err)
-	assert.False(t, res.IsContinue(), "a post-topology module waits for the topology")
-
-	cond := meta.FindStatusCondition(mod.Status.Conditions, modules.ConditionGated)
+	cond := meta.FindStatusCondition(mod.Status.Conditions, ConditionGated)
 	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status, "a post-topology module waits for the topology")
 	assert.Equal(t, "WaitingForTopology", cond.Reason)
+	assert.Nil(t, meta.FindStatusCondition(mod.Status.Conditions, ConditionDeployed),
+		"nothing may be deployed before the topology is up")
 }
 
 func TestProcessDependencies(t *testing.T) {
@@ -279,18 +276,17 @@ func TestProcessDependencies(t *testing.T) {
 			reg := clusters.NewRegistry()
 			engage(t, reg, "shards-default#customer-a--s1", workload)
 
-			sub := newSubroutine(t, objs, reg)
-			res, err := sub.Process(t.Context(), mod)
+			r := newTestReconciler(t, objs, reg, mod)
+			err := r.run(t.Context())
 			require.NoError(t, err)
 
-			cond := meta.FindStatusCondition(mod.Status.Conditions, modules.ConditionGated)
+			cond := meta.FindStatusCondition(mod.Status.Conditions, ConditionGated)
 			require.NotNil(t, cond)
 			if tt.wantReason == "" {
-				assert.True(t, res.IsContinue())
 				assert.Equal(t, metav1.ConditionTrue, cond.Status)
 				return
 			}
-			assert.False(t, res.IsContinue())
+			assert.Equal(t, metav1.ConditionFalse, cond.Status)
 			assert.Equal(t, tt.wantReason, cond.Reason)
 		})
 	}
@@ -342,9 +338,16 @@ func TestProcessRejectsDependencyCycles(t *testing.T) {
 			objs := tt.build()
 			mod := objs[1].(*pmdeployv1alpha1.Module)
 
-			sub := newSubroutine(t, objs, clusters.NewRegistry())
-			_, err := sub.Process(t.Context(), mod)
-			require.ErrorContains(t, err, "dependency cycle")
+			r := newTestReconciler(t, objs, clusters.NewRegistry(), mod)
+			// A cycle is a permanent misconfiguration, so it is recorded
+			// rather than retried forever.
+			require.NoError(t, r.run(t.Context()))
+
+			cond := meta.FindStatusCondition(mod.Status.Conditions, ConditionSpecValid)
+			require.NotNil(t, cond)
+			assert.Equal(t, metav1.ConditionFalse, cond.Status)
+			assert.Equal(t, "Invalid", cond.Reason)
+			assert.Contains(t, cond.Message, "dependency cycle")
 		})
 	}
 }
@@ -359,8 +362,8 @@ func TestProcessAcceptsDependencyChain(t *testing.T) {
 	c := testModule()
 	c.Name = "c"
 
-	sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(true), a, b, c}, clusters.NewRegistry())
-	_, err := sub.Process(t.Context(), a)
+	r := newTestReconciler(t, []ctrlruntimeclient.Object{platformMesh(true), a, b, c}, clusters.NewRegistry(), a)
+	err := r.run(t.Context())
 	require.NoError(t, err, "a chain is not a cycle")
 }
 
@@ -372,8 +375,8 @@ func TestProcessPrunesStaleInstances(t *testing.T) {
 	reg := clusters.NewRegistry()
 	engage(t, reg, "shards-default#customer-a--s1", workload)
 
-	sub := newSubroutine(t, []ctrlruntimeclient.Object{pm, mod}, reg)
-	_, err := sub.Process(t.Context(), mod)
+	r := newTestReconciler(t, []ctrlruntimeclient.Object{pm, mod}, reg, mod)
+	err := r.run(t.Context())
 	require.NoError(t, err)
 
 	svcKey := ctrlruntimeclient.ObjectKey{Namespace: "acme-system", Name: "acme-agent"}
@@ -381,8 +384,7 @@ func TestProcessPrunesStaleInstances(t *testing.T) {
 
 	// Dropping the component must remove what it left behind.
 	mod.Spec.Components = nil
-	_, err = sub.Process(t.Context(), mod)
-	require.NoError(t, err)
+	require.NoError(t, r.run(t.Context()))
 
 	cm := &unstructured.Unstructured{}
 	cm.SetGroupVersionKind(corev1.SchemeGroupVersion.WithKind("ConfigMap"))
@@ -393,8 +395,8 @@ func TestProcessPrunesStaleInstances(t *testing.T) {
 func TestProcessMissingPlatformMesh(t *testing.T) {
 	mod := testModule()
 	reg := clusters.NewRegistry()
-	sub := newSubroutine(t, []ctrlruntimeclient.Object{mod}, reg)
+	r := newTestReconciler(t, []ctrlruntimeclient.Object{mod}, reg, mod)
 
-	_, err := sub.Process(t.Context(), mod)
+	err := r.run(t.Context())
 	require.Error(t, err)
 }

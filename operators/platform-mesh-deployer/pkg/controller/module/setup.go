@@ -14,19 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package module
 
 import (
 	"context"
 	"fmt"
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	pmmodule "go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // errSetupPending signals that the kcp side of a module is not ready yet.
@@ -35,8 +34,8 @@ var errSetupPending = fmt.Errorf("module setup not ready yet")
 // ensureSetup writes the ModuleSetup handshake object and reports whether the
 // provisioner has finished the kcp side. The workload is only deployed after
 // that, so it can rely on its workspaces and their content existing.
-func (s *Subroutine) ensureSetup(ctx context.Context, st *state) error {
-	mod := st.resolved.Module
+func (r *reconciler) ensureSetup(ctx context.Context) error {
+	mod := r.mod
 	if len(mod.Spec.Workspaces) == 0 {
 		return nil
 	}
@@ -46,7 +45,7 @@ func (s *Subroutine) ensureSetup(ctx context.Context, st *state) error {
 	workspaces := make([]pmdeployv1alpha1.ModuleSetupWorkspace, 0, len(mod.Spec.Workspaces))
 	for _, ws := range mod.Spec.Workspaces {
 		workspaces = append(workspaces, pmdeployv1alpha1.ModuleSetupWorkspace{
-			Path:    module.WorkspacePath(mod.Name, ws.Name),
+			Path:    pmmodule.WorkspacePath(mod.Name, ws.Name),
 			Content: ws.Content,
 		})
 	}
@@ -54,15 +53,15 @@ func (s *Subroutine) ensureSetup(ctx context.Context, st *state) error {
 	setup := &pmdeployv1alpha1.ModuleSetup{
 		ObjectMeta: metav1.ObjectMeta{Name: mod.Name, Namespace: mod.Namespace},
 	}
-	if _, err := controllerutil.CreateOrUpdate(ctx, s.client, setup, func() error {
-		setup.Labels = module.ModuleSelector(mod, "")
+	if err := r.opts.Apply(ctx, mod, setup, func() error {
+		setup.Labels = pmmodule.ModuleSelector(mod, "")
 		setup.Spec = pmdeployv1alpha1.ModuleSetupSpec{
 			PlatformMeshRef: mod.Spec.PlatformMeshRef,
 			ModuleRef:       corev1.LocalObjectReference{Name: mod.Name},
 			ComponentDigest: mod.Status.ResolvedDigest,
 			Workspaces:      workspaces,
 		}
-		return controllerutil.SetControllerReference(mod, setup, s.client.Scheme())
+		return nil
 	}); err != nil {
 		return fmt.Errorf("reconciling ModuleSetup %q: %w", mod.Name, err)
 	}
@@ -71,6 +70,6 @@ func (s *Subroutine) ensureSetup(ctx context.Context, st *state) error {
 		return fmt.Errorf("%w: %s", errSetupPending, mod.Name)
 	}
 
-	st.endpoints = setup.Status.Endpoints
+	r.endpoints = setup.Status.Endpoints
 	return nil
 }

@@ -14,6 +14,7 @@ replace (
 replace sigs.k8s.io/multicluster-runtime => github.com/ntnn/multicluster-runtime v0.24.2-0.20260726095807-8edbf3201cf6
 
 require (
+	github.com/go-logr/logr v1.4.3
 	github.com/google/cel-go v0.28.1
 	github.com/kcp-dev/kcp-operator/sdk v0.0.0-00010101000000-000000000000
 	github.com/kcp-dev/kcp/sdk v0.28.1
@@ -24,7 +25,6 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.69.0
 	go.platform-mesh.io/apis v0.0.3
 	go.platform-mesh.io/golang-commons v0.18.1
-	go.platform-mesh.io/subroutines v0.6.1
 	golang.org/x/mod v0.36.0
 	k8s.io/api v0.36.0
 	k8s.io/apiextensions-apiserver v0.36.0
@@ -61,7 +61,6 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.1 // indirect
 	github.com/getsentry/sentry-go v0.46.2 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
 	github.com/go-logr/zerologr v1.2.3 // indirect

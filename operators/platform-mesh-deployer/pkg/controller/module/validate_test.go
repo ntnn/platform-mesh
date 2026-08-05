@@ -14,17 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules_test
+package module
 
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -67,9 +70,18 @@ func TestProcessRejectsUnsatisfiableReferences(t *testing.T) {
 			mod := testModule()
 			tt.mutate(mod)
 
-			sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(true), mod}, clusters.NewRegistry())
-			_, err := sub.Process(t.Context(), mod)
-			require.ErrorContains(t, err, tt.wantErr)
+			r := newTestReconciler(t, []ctrlruntimeclient.Object{platformMesh(true), mod}, clusters.NewRegistry(), mod)
+			// An unsatisfiable spec is terminal: only an edit fixes it,
+			// and that re-triggers the watch, so it is recorded rather
+			// than retried forever.
+			require.NoError(t, r.run(t.Context()))
+
+			cond := meta.FindStatusCondition(mod.Status.Conditions, ConditionSpecValid)
+			require.NotNil(t, cond)
+			assert.Equal(t, metav1.ConditionFalse, cond.Status)
+			assert.Equal(t, "Invalid", cond.Reason)
+			assert.Contains(t, cond.Message, tt.wantErr)
+			assert.Equal(t, mod.Generation, cond.ObservedGeneration)
 		})
 	}
 }
@@ -84,8 +96,8 @@ func TestProcessAcceptsDeclaredReferences(t *testing.T) {
 	}
 	mod.Spec.Components[0].Kubeconfigs = []string{"kcp", "val"}
 
-	sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(true), mod}, clusters.NewRegistry())
-	_, err := sub.Process(t.Context(), mod)
+	r := newTestReconciler(t, []ctrlruntimeclient.Object{platformMesh(true), mod}, clusters.NewRegistry(), mod)
+	err := r.run(t.Context())
 	require.NoError(t, err)
 }
 
@@ -100,11 +112,10 @@ func TestProcessPreTopologyDoesNotWaitForTopology(t *testing.T) {
 	engage(t, reg, "shards-default#customer-a--s1", workload)
 
 	// platformMesh(false) has Ready=False, i.e. no topology yet.
-	sub := newSubroutine(t, []ctrlruntimeclient.Object{platformMesh(false), mod}, reg)
-	res, err := sub.Process(t.Context(), mod)
+	r := newTestReconciler(t, []ctrlruntimeclient.Object{platformMesh(false), mod}, reg, mod)
+	err := r.run(t.Context())
 	require.NoError(t, err)
-	require.True(t, res.IsContinue(), "a pre-topology module must not wait for kcp")
-
 	require.NoError(t, workload.Get(t.Context(),
-		ctrlruntimeclient.ObjectKey{Namespace: "acme-system", Name: "acme-agent"}, &corev1.Service{}))
+		ctrlruntimeclient.ObjectKey{Namespace: "acme-system", Name: "acme-agent"}, &corev1.Service{}),
+		"a pre-topology module must not wait for kcp")
 }

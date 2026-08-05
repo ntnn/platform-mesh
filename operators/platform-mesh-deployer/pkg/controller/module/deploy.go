@@ -14,29 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package module
 
 import (
 	"context"
 	"fmt"
 	"sort"
-	"time"
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	pmmodule "go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
-// requeueWait is how long a gated Module waits before re-checking.
-const requeueWait = 15 * time.Second
-
 // deploy renders every instance and applies it to its cluster, then prunes the
 // objects of instances that no longer exist.
-func (s *Subroutine) deploy(ctx context.Context, st *state) error {
-	mod := st.resolved.Module
+func (r *reconciler) deploy(ctx context.Context) error {
+	mod := r.mod
 
 	// Objects to keep per cluster, so a component that lost a cluster or a
 	// cluster that lost a component is cleaned up.
@@ -44,28 +40,28 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 	kinds := map[string]map[schema.GroupVersionKind]struct{}{}
 	status := map[string]*pmdeployv1alpha1.ModuleComponentStatus{}
 
-	for _, inst := range st.instances {
+	for _, inst := range r.instances {
 		// The kubeconfigs must exist before the payload references them,
 		// otherwise its pods block mounting a missing secret.
-		if err := s.ensureKubeconfigs(ctx, st, inst); err != nil {
+		if err := r.ensureKubeconfigs(ctx, inst); err != nil {
 			return err
 		}
 
-		celCtx, err := st.resolved.Context(inst)
+		celCtx, err := r.resolved.Context(inst)
 		if err != nil {
 			return err
 		}
-		celCtx.Endpoints = st.endpoints
+		celCtx.Endpoints = r.endpoints
 
 		// A mapped component is fronted by the front proxy, which needs a
 		// certificate it trusts before the topology can route to it, and which
 		// forwards the caller's identity signed by the requestheader CA.
 		var mapping *pmdeployv1alpha1.ResolvedMapping
 		if inst.Component.Mapping != nil {
-			if err := s.ensureServingCert(ctx, st, inst, celCtx); err != nil {
+			if err := r.ensureServingCert(ctx, inst, celCtx); err != nil {
 				return err
 			}
-			if err := s.ensureRequestHeaderCA(ctx, st, inst); err != nil {
+			if err := r.ensureRequestHeaderCA(ctx, inst); err != nil {
 				return err
 			}
 			mapping, err = resolveMapping(inst, celCtx)
@@ -74,7 +70,7 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 			}
 		}
 
-		objs, err := st.resolved.Render(ctx, inst, st.endpoints)
+		objs, err := r.resolved.Render(ctx, inst, r.endpoints)
 		if err != nil {
 			return err
 		}
@@ -97,10 +93,10 @@ func (s *Subroutine) deploy(ctx context.Context, st *state) error {
 			kinds[id][obj.GroupVersionKind()] = struct{}{}
 		}
 
-		componentStatus(status, inst, module.ConfigMapName(mod.Name, inst.Component.Name), mapping)
+		componentStatus(status, inst, pmmodule.ConfigMapName(mod.Name, inst.Component.Name), mapping)
 	}
 
-	if err := s.prune(ctx, st, keep, kinds); err != nil {
+	if err := r.prune(ctx, keep, kinds); err != nil {
 		return err
 	}
 
@@ -129,9 +125,9 @@ func appliedKindsStatus(perCluster map[string]map[schema.GroupVersionKind]struct
 
 // prune deletes objects the module owns on a cluster that this reconcile did
 // not apply.
-func (s *Subroutine) prune(ctx context.Context, st *state, keep map[string]map[sync.ObjectKey]struct{}, kinds map[string]map[schema.GroupVersionKind]struct{}) error {
-	mod := st.resolved.Module
-	for _, c := range s.registry.AllClustersFor(mod.Spec.PlatformMeshRef.Name) {
+func (r *reconciler) prune(ctx context.Context, keep map[string]map[sync.ObjectKey]struct{}, kinds map[string]map[schema.GroupVersionKind]struct{}) error {
+	mod := r.mod
+	for _, c := range r.opts.AllClustersFor(mod.Spec.PlatformMeshRef.Name) {
 		gvks := kindsOf(kinds[c.ClusterID])
 		if len(gvks) == 0 {
 			// Nothing was applied here this round; still prune what a
@@ -143,7 +139,7 @@ func (s *Subroutine) prune(ctx context.Context, st *state, keep map[string]map[s
 			continue
 		}
 		if err := sync.Prune(ctx, c.Cluster.GetClient(), gvks,
-			module.ModuleSelector(mod, c.ClusterID), keep[c.ClusterID]); err != nil {
+			pmmodule.ModuleSelector(mod, c.ClusterID), keep[c.ClusterID]); err != nil {
 			return fmt.Errorf("pruning on cluster %q: %w", c.ClusterID, err)
 		}
 	}
@@ -168,7 +164,7 @@ func kindsOf(set map[schema.GroupVersionKind]struct{}) []schema.GroupVersionKind
 
 // resolveMapping interpolates a component's mapping into the concrete path and
 // backend URL the front proxy routes with.
-func resolveMapping(inst module.Instance, celCtx celtemplate.Context) (*pmdeployv1alpha1.ResolvedMapping, error) {
+func resolveMapping(inst pmmodule.Instance, celCtx celtemplate.Context) (*pmdeployv1alpha1.ResolvedMapping, error) {
 	m := inst.Component.Mapping
 
 	service, err := celtemplate.Interpolate(m.Service, celCtx)
@@ -197,7 +193,7 @@ func resolveMapping(inst module.Instance, celCtx celtemplate.Context) (*pmdeploy
 }
 
 // componentStatus records one applied instance.
-func componentStatus(status map[string]*pmdeployv1alpha1.ModuleComponentStatus, inst module.Instance, configMap string, mapping *pmdeployv1alpha1.ResolvedMapping) {
+func componentStatus(status map[string]*pmdeployv1alpha1.ModuleComponentStatus, inst pmmodule.Instance, configMap string, mapping *pmdeployv1alpha1.ResolvedMapping) {
 	cs, ok := status[inst.Component.Name]
 	if !ok {
 		cs = &pmdeployv1alpha1.ModuleComponentStatus{

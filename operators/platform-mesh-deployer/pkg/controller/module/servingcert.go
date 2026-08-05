@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package module
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	pmmodule "go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
 
@@ -58,8 +58,8 @@ var errRequestHeaderCAPending = fmt.Errorf("requestheader CA not created yet")
 // which is the root shard's root CA. Issuing from the root shard's server CA
 // therefore produces a chain the front proxy trusts without kcp-operator having
 // to mount anything extra.
-func (s *Subroutine) ensureServingCert(ctx context.Context, st *state, inst module.Instance, celCtx celtemplate.Context) error {
-	mod := st.resolved.Module
+func (r *reconciler) ensureServingCert(ctx context.Context, inst pmmodule.Instance, celCtx celtemplate.Context) error {
+	mod := r.mod
 	mapping := inst.Component.Mapping
 
 	service, err := celtemplate.Interpolate(mapping.Service, celCtx)
@@ -71,18 +71,18 @@ func (s *Subroutine) ensureServingCert(ctx context.Context, st *state, inst modu
 		return fmt.Errorf("component %q: mapping service evaluated to %T, want string", inst.Component.Name, service)
 	}
 
-	issuer, err := s.rootShardIssuer(st)
+	issuer, err := r.rootShardIssuer()
 	if err != nil {
 		return err
 	}
 
-	certName := module.ServingCertName(mod.Name, inst.Component.Name, inst.Cluster.ClusterID)
+	certName := pmmodule.ServingCertName(mod.Name, inst.Component.Name, inst.Cluster.ClusterID)
 	cert := &unstructured.Unstructured{}
 	cert.SetGroupVersionKind(certificateGVK)
 	cert.SetName(certName)
 	cert.SetNamespace(mod.Namespace)
-	if _, err := controllerutil.CreateOrUpdate(ctx, s.client, cert, func() error {
-		cert.SetLabels(module.ModuleSelector(mod, inst.Cluster.ClusterID))
+	if err := r.opts.Apply(ctx, mod, cert, func() error {
+		cert.SetLabels(pmmodule.ModuleSelector(mod, inst.Cluster.ClusterID))
 		spec := map[string]any{
 			"secretName": certName,
 			"dnsNames":   toAnySlice(serviceDNSNames(name, inst.Component.Namespace)),
@@ -96,14 +96,14 @@ func (s *Subroutine) ensureServingCert(ctx context.Context, st *state, inst modu
 		if err := unstructured.SetNestedMap(cert.Object, spec, "spec"); err != nil {
 			return err
 		}
-		return controllerutil.SetControllerReference(mod, cert, s.client.Scheme())
+		return nil
 	}); err != nil {
 		return fmt.Errorf("reconciling Certificate %q: %w", certName, err)
 	}
 
-	src := &corev1.Secret{}
 	key := ctrlruntimeclient.ObjectKey{Namespace: mod.Namespace, Name: certName}
-	if err := s.client.Get(ctx, key, src); err != nil {
+	src, err := r.opts.GetSecret(ctx, key)
+	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Errorf("%w: %s", errServingCertPending, certName)
 		}
@@ -115,11 +115,11 @@ func (s *Subroutine) ensureServingCert(ctx context.Context, st *state, inst modu
 		return err
 	}
 	dst := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-		Name:      module.ServingCertSecretName(mod.Name, inst.Component.Name),
+		Name:      pmmodule.ServingCertSecretName(mod.Name, inst.Component.Name),
 		Namespace: inst.Component.Namespace,
 	}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, cl, dst, func() error {
-		dst.Labels = module.ModuleSelector(mod, inst.Cluster.ClusterID)
+		dst.Labels = pmmodule.ModuleSelector(mod, inst.Cluster.ClusterID)
 		dst.Type = src.Type
 		dst.Data = src.Data
 		return nil
@@ -149,8 +149,8 @@ func serviceDNSNames(service, namespace string) []string {
 
 // rootShardIssuer is the name of the cert-manager Issuer for the root shard's
 // server CA, which kcp-operator creates alongside the root shard.
-func (s *Subroutine) rootShardIssuer(st *state) (string, error) {
-	name, err := s.rootShardName(st)
+func (r *reconciler) rootShardIssuer() (string, error) {
+	name, err := r.rootShardName()
 	if err != nil {
 		return "", err
 	}
@@ -159,9 +159,9 @@ func (s *Subroutine) rootShardIssuer(st *state) (string, error) {
 
 // rootShardName is the root shard admin CR name, which kcp-operator derives its
 // own secret names from.
-func (s *Subroutine) rootShardName(st *state) (string, error) {
-	pm := st.platformMesh
-	engaged := s.registry.ClustersFor(pm.Name, components.RootShard)
+func (r *reconciler) rootShardName() (string, error) {
+	pm := r.pm
+	engaged := r.opts.ClustersFor(pm.Name, components.RootShard)
 	if len(engaged) != 1 {
 		return "", fmt.Errorf("expected exactly one root shard cluster, found %d", len(engaged))
 	}
@@ -176,18 +176,18 @@ func (s *Subroutine) rootShardName(st *state) (string, error) {
 // on that identity has to verify it, and the CA is a kcp-operator secret named
 // after the root shard, so the deployer copies it rather than have every module
 // reconstruct that name.
-func (s *Subroutine) ensureRequestHeaderCA(ctx context.Context, st *state, inst module.Instance) error {
-	mod := st.resolved.Module
+func (r *reconciler) ensureRequestHeaderCA(ctx context.Context, inst pmmodule.Instance) error {
+	mod := r.mod
 
-	rootShard, err := s.rootShardName(st)
+	rootShard, err := r.rootShardName()
 	if err != nil {
 		return err
 	}
 	caName := rootShard + "-requestheader-client-ca"
 
-	src := &corev1.Secret{}
 	key := ctrlruntimeclient.ObjectKey{Namespace: mod.Namespace, Name: caName}
-	if err := s.client.Get(ctx, key, src); err != nil {
+	src, err := r.opts.GetSecret(ctx, key)
+	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Errorf("%w: %s", errRequestHeaderCAPending, caName)
 		}
@@ -199,11 +199,11 @@ func (s *Subroutine) ensureRequestHeaderCA(ctx context.Context, st *state, inst 
 		return err
 	}
 	dst := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-		Name:      module.RequestHeaderCASecretName(mod.Name, inst.Component.Name),
+		Name:      pmmodule.RequestHeaderCASecretName(mod.Name, inst.Component.Name),
 		Namespace: inst.Component.Namespace,
 	}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, cl, dst, func() error {
-		dst.Labels = module.ModuleSelector(mod, inst.Cluster.ClusterID)
+		dst.Labels = pmmodule.ModuleSelector(mod, inst.Cluster.ClusterID)
 		dst.Type = src.Type
 		dst.Data = src.Data
 		return nil

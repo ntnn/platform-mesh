@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules_test
+package module
 
 import (
 	"testing"
@@ -24,12 +24,14 @@ import (
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/modules"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // A module declaring workspaces must get a ModuleSetup that keeps each
@@ -48,11 +50,14 @@ func TestProcessWritesModuleSetupPerWorkspace(t *testing.T) {
 
 	local := fake.NewClientBuilder().WithScheme(scheme(t)).
 		WithObjects(platformMesh(true), mod).Build()
-	sub := newSubroutineWithClient(t, local, reg)
+	r := newReconciler(t, local, reg, testResolver(), mod)
 
-	res, err := sub.Process(t.Context(), mod)
+	err := r.run(t.Context())
 	require.NoError(t, err)
-	assert.False(t, res.IsContinue(), "deploy waits until the setup is ready")
+	cond := meta.FindStatusCondition(mod.Status.Conditions, ConditionDeployed)
+	require.NotNil(t, cond)
+	assert.Equal(t, metav1.ConditionFalse, cond.Status, "deploy waits until the setup is ready")
+	assert.Equal(t, "WaitingForSetup", cond.Reason)
 
 	setup := &pmdeployv1alpha1.ModuleSetup{}
 	require.NoError(t, local.Get(t.Context(),
@@ -81,9 +86,9 @@ func TestProcessWithoutWorkspacesWritesNoSetup(t *testing.T) {
 
 	local := fake.NewClientBuilder().WithScheme(scheme(t)).
 		WithObjects(platformMesh(true), mod).Build()
-	sub := newSubroutineWithClient(t, local, reg)
+	r := newReconciler(t, local, reg, testResolver(), mod)
 
-	_, err := sub.Process(t.Context(), mod)
+	err := r.run(t.Context())
 	require.NoError(t, err)
 
 	err = local.Get(t.Context(),
@@ -102,18 +107,18 @@ func TestFinalizePrunesWorkloads(t *testing.T) {
 
 	local := fake.NewClientBuilder().WithScheme(scheme(t)).
 		WithObjects(platformMesh(true), mod).Build()
-	sub := newSubroutineWithClient(t, local, reg)
+	r := newReconciler(t, local, reg, testResolver(), mod)
 
-	_, err := sub.Process(t.Context(), mod)
+	err := r.run(t.Context())
 	require.NoError(t, err)
 
 	key := ctrlruntimeclient.ObjectKey{Namespace: "acme-system", Name: "acme-agent"}
 	require.NoError(t, workload.Get(t.Context(), key, &corev1.Service{}))
 	require.NotEmpty(t, mod.Status.AppliedKinds, "teardown needs the kinds recorded")
 
-	res, err := sub.Finalize(t.Context(), mod)
+	controllerutil.AddFinalizer(mod, Finalizer)
+	_, err = r.finalize(t.Context())
 	require.NoError(t, err)
-	assert.True(t, res.IsContinue())
 
 	assert.True(t, apierrors.IsNotFound(workload.Get(t.Context(), key, &corev1.Service{})),
 		"the Service must be gone")
@@ -121,8 +126,15 @@ func TestFinalizePrunesWorkloads(t *testing.T) {
 		"the generated ConfigMap must be gone")
 }
 
-func TestFinalizers(t *testing.T) {
-	sub := newSubroutineWithClient(t,
-		fake.NewClientBuilder().WithScheme(scheme(t)).Build(), clusters.NewRegistry())
-	assert.Equal(t, []string{modules.Finalizer}, sub.Finalizers(testModule()))
+// The finalizer is added before anything is applied, since the workloads it
+// protects live on clusters no owner reference reaches.
+func TestEnsureFinalizer_stopsThePassAfterAddingIt(t *testing.T) {
+	mod := testModule()
+	local := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(mod).Build()
+	r := newReconciler(t, local, clusters.NewRegistry(), testResolver(), mod)
+
+	cont, err := r.ensureFinalizer(t.Context())
+	require.NoError(t, err)
+	assert.False(t, cont, "the update re-triggers the watch, so the pass stops here")
+	assert.True(t, controllerutil.ContainsFinalizer(mod, Finalizer))
 }

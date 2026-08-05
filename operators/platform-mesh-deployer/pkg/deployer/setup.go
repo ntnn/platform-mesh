@@ -24,7 +24,7 @@ import (
 	"go.platform-mesh.io/golang-commons/logger"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller/modulesetup"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller/platformmesh"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
@@ -106,7 +106,11 @@ func Setup(mgr mcmanager.Manager, cfg Config) error {
 		}
 	}
 	if cfg.controllerEnabled(ControllerModule) {
-		if err := controller.NewModuleReconciler(mgr, registry, cfg.Resolver).SetupWithManager(mgr); err != nil {
+		c, err := module.NewControllerFor(mgr, registry, cfg.Resolver)
+		if err != nil {
+			return fmt.Errorf("building module controller: %w", err)
+		}
+		if err := c.SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up module controller: %w", err)
 		}
 	}

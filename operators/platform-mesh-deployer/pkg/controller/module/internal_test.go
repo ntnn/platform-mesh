@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package module
 
 import (
 	"context"
@@ -26,7 +26,7 @@ import (
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	pmmodule "go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -47,38 +47,32 @@ func internalScheme(t *testing.T) *runtime.Scheme {
 	return s
 }
 
-func internalState(t *testing.T, engaged ...string) *state {
+// internalReconciler builds a reconciler with the PlatformMesh already
+// resolved, which is all the naming helpers below read.
+func internalReconciler(t *testing.T, engaged ...string) *reconciler {
 	t.Helper()
 	reg := clusters.NewRegistry()
 	for _, n := range engaged {
 		require.NoError(t, reg.Engage(context.Background(), multicluster.ClusterName(n), nil))
 	}
-	return &state{
-		platformMesh: &pmdeployv1alpha1.PlatformMesh{
-			ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
-			Spec: pmdeployv1alpha1.PlatformMeshSpec{
-				Topology: pmdeployv1alpha1.Topology{
-					RootShard:  pmdeployv1alpha1.RootShard{Name: "root"},
-					FrontProxy: pmdeployv1alpha1.FrontProxy{Name: "fp"},
-				},
+	cl := fake.NewClientBuilder().WithScheme(internalScheme(t)).Build()
+	r := newReconciler(t, cl, reg, nil, &pmdeployv1alpha1.Module{
+		ObjectMeta: metav1.ObjectMeta{Name: "acme", Namespace: "pm"},
+	})
+	r.pm = &pmdeployv1alpha1.PlatformMesh{
+		ObjectMeta: metav1.ObjectMeta{Name: "customer-a", Namespace: "pm"},
+		Spec: pmdeployv1alpha1.PlatformMeshSpec{
+			Topology: pmdeployv1alpha1.Topology{
+				RootShard:  pmdeployv1alpha1.RootShard{Name: "root"},
+				FrontProxy: pmdeployv1alpha1.FrontProxy{Name: "fp"},
 			},
 		},
 	}
+	return r
 }
 
-func internalSubroutine(t *testing.T, engaged ...string) (*Subroutine, *state) {
-	t.Helper()
-	st := internalState(t, engaged...)
-	reg := clusters.NewRegistry()
-	for _, n := range engaged {
-		require.NoError(t, reg.Engage(context.Background(), multicluster.ClusterName(n), nil))
-	}
-	s := internalScheme(t)
-	return New(fake.NewClientBuilder().WithScheme(s).Build(), reg, nil), st
-}
-
-func instance(component string, placement pmdeployv1alpha1.Placement, clusterID, shardGroup string) module.Instance {
-	return module.Instance{
+func instance(component string, placement pmdeployv1alpha1.Placement, clusterID, shardGroup string) pmmodule.Instance {
+	return pmmodule.Instance{
 		Component: pmdeployv1alpha1.ModuleComponent{
 			Name: component, Placement: placement, Namespace: "acme-system",
 		},
@@ -90,23 +84,23 @@ func instance(component string, placement pmdeployv1alpha1.Placement, clusterID,
 // A kubeconfig is minted against the topology object of its target, named
 // "<spec name>-<cluster ID>".
 func TestKubeconfigTarget(t *testing.T) {
-	sub, st := internalSubroutine(t, "rootshard#customer-a--east", "frontproxy#customer-a--fp1")
+	r := internalReconciler(t, "rootshard#customer-a--east", "frontproxy#customer-a--fp1")
 
-	front, err := sub.kubeconfigTarget(st,
+	front, err := r.kubeconfigTarget(
 		pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetFrontProxy},
 		instance("app", pmdeployv1alpha1.PlacementRootShard, "east", ""))
 	require.NoError(t, err)
 	require.NotNil(t, front.FrontProxyRef)
 	assert.Equal(t, names.FrontProxy("customer-a", "fp", "fp1"), front.FrontProxyRef.Name)
 
-	root, err := sub.kubeconfigTarget(st,
+	root, err := r.kubeconfigTarget(
 		pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetRootShard},
 		instance("app", pmdeployv1alpha1.PlacementRootShard, "east", ""))
 	require.NoError(t, err)
 	require.NotNil(t, root.RootShardRef)
 	assert.Equal(t, names.RootShard("customer-a", "root", "east"), root.RootShardRef.Name)
 
-	shard, err := sub.kubeconfigTarget(st,
+	shard, err := r.kubeconfigTarget(
 		pmdeployv1alpha1.ModuleKubeconfig{Name: "kcp", Target: pmdeployv1alpha1.KubeconfigTargetShard},
 		instance("agent", pmdeployv1alpha1.PlacementPerShard, "s1", "default"))
 	require.NoError(t, err)
@@ -119,7 +113,7 @@ func TestKubeconfigTargetErrors(t *testing.T) {
 		name    string
 		engaged []string
 		kc      pmdeployv1alpha1.ModuleKubeconfig
-		inst    module.Instance
+		inst    pmmodule.Instance
 		wantErr string
 	}{
 		{
@@ -151,8 +145,8 @@ func TestKubeconfigTargetErrors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sub, st := internalSubroutine(t, tt.engaged...)
-			_, err := sub.kubeconfigTarget(st, tt.kc, tt.inst)
+			r := internalReconciler(t, tt.engaged...)
+			_, err := r.kubeconfigTarget(tt.kc, tt.inst)
 			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
@@ -170,26 +164,23 @@ func TestServiceDNSNames(t *testing.T) {
 }
 
 func TestRootShardIssuer(t *testing.T) {
-	sub, st := internalSubroutine(t, "rootshard#customer-a--east")
-	issuer, err := sub.rootShardIssuer(st)
+	r := internalReconciler(t, "rootshard#customer-a--east")
+	issuer, err := r.rootShardIssuer()
 	require.NoError(t, err)
 	assert.Equal(t, names.RootShard("customer-a", "root", "east")+"-server-ca", issuer)
 
-	sub, st = internalSubroutine(t)
-	_, err = sub.rootShardIssuer(st)
+	r = internalReconciler(t)
+	_, err = r.rootShardIssuer()
 	require.ErrorContains(t, err, "exactly one root shard")
 }
 
 // The requestheader CA is a kcp-operator secret named after the root shard, so
 // waiting for it is ordinary progress rather than a failure.
 func TestRequestHeaderCAPending(t *testing.T) {
-	sub, st := internalSubroutine(t, "rootshard#customer-a--east")
-	st.resolved = &module.Resolved{Module: &pmdeployv1alpha1.Module{
-		ObjectMeta: metav1.ObjectMeta{Name: "acme", Namespace: "pm"},
-	}}
+	r := internalReconciler(t, "rootshard#customer-a--east")
 	inst := instance("vw", pmdeployv1alpha1.PlacementPerFrontProxy, "fp1", "")
 
-	err := sub.ensureRequestHeaderCA(context.Background(), st, inst)
+	err := r.ensureRequestHeaderCA(context.Background(), inst)
 	require.ErrorIs(t, err, errRequestHeaderCAPending)
 	assert.Contains(t, err.Error(), names.RootShard("customer-a", "root", "east")+"-requestheader-client-ca")
 }
@@ -231,9 +222,4 @@ func TestResolveMappingRejectsBadTemplates(t *testing.T) {
 func TestToAnySlice(t *testing.T) {
 	assert.Equal(t, []any{"a", "b"}, toAnySlice([]string{"a", "b"}))
 	assert.Empty(t, toAnySlice(nil))
-}
-
-func TestGetName(t *testing.T) {
-	sub, _ := internalSubroutine(t)
-	assert.Equal(t, Name, sub.GetName())
 }

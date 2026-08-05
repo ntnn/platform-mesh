@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package module
 
 import (
 	"context"
@@ -23,7 +23,7 @@ import (
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	pmmodule "go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
 
@@ -47,24 +47,24 @@ var errKubeconfigPending = fmt.Errorf("kubeconfig secret not minted yet")
 // and copies them to the cluster the component runs on. A module is granted
 // cluster-admin inside its own workspaces: kcp authorises per logical cluster,
 // so the workspace is the boundary.
-func (s *Subroutine) ensureKubeconfigs(ctx context.Context, st *state, inst module.Instance) error {
-	mod := st.resolved.Module
+func (r *reconciler) ensureKubeconfigs(ctx context.Context, inst pmmodule.Instance) error {
+	mod := r.mod
 
-	for _, kc := range st.resolved.Kubeconfigs(inst.Component) {
-		target, err := s.kubeconfigTarget(st, kc, inst)
+	for _, kc := range r.resolved.Kubeconfigs(inst.Component) {
+		target, err := r.kubeconfigTarget(kc, inst)
 		if err != nil {
 			return err
 		}
 
-		name := module.KubeconfigName(mod.Name, kc.Name, inst.Cluster.ClusterID)
+		name := pmmodule.KubeconfigName(mod.Name, kc.Name, inst.Cluster.ClusterID)
 		obj := &operatorv1alpha1.Kubeconfig{
 			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: mod.Namespace},
 		}
-		if _, err := controllerutil.CreateOrUpdate(ctx, s.client, obj, func() error {
-			obj.Labels = module.ModuleSelector(mod, inst.Cluster.ClusterID)
+		if err := r.opts.Apply(ctx, mod, obj, func() error {
+			obj.Labels = pmmodule.ModuleSelector(mod, inst.Cluster.ClusterID)
 			obj.Spec = operatorv1alpha1.KubeconfigSpec{
 				Target:          target,
-				TargetWorkspace: module.WorkspacePath(mod.Name, kc.Workspace),
+				TargetWorkspace: pmmodule.WorkspacePath(mod.Name, kc.Workspace),
 				Username:        "module:" + mod.Name + ":" + kc.Name,
 				Validity:        metav1.Duration{Duration: kubeconfigValidity},
 				SecretRef:       corev1.LocalObjectReference{Name: name},
@@ -74,12 +74,12 @@ func (s *Subroutine) ensureKubeconfigs(ctx context.Context, st *state, inst modu
 					},
 				},
 			}
-			return controllerutil.SetControllerReference(mod, obj, s.client.Scheme())
+			return nil
 		}); err != nil {
 			return fmt.Errorf("reconciling Kubeconfig %q: %w", name, err)
 		}
 
-		if err := s.syncKubeconfig(ctx, st, inst, kc, name); err != nil {
+		if err := r.syncKubeconfig(ctx, inst, kc, name); err != nil {
 			return err
 		}
 	}
@@ -88,12 +88,12 @@ func (s *Subroutine) ensureKubeconfigs(ctx context.Context, st *state, inst modu
 
 // syncKubeconfig copies a minted kubeconfig secret to the component's cluster,
 // renaming it to the cluster-local name the payload references.
-func (s *Subroutine) syncKubeconfig(ctx context.Context, st *state, inst module.Instance, kc pmdeployv1alpha1.ModuleKubeconfig, minted string) error {
-	mod := st.resolved.Module
+func (r *reconciler) syncKubeconfig(ctx context.Context, inst pmmodule.Instance, kc pmdeployv1alpha1.ModuleKubeconfig, minted string) error {
+	mod := r.mod
 
-	src := &corev1.Secret{}
 	key := ctrlruntimeclient.ObjectKey{Namespace: mod.Namespace, Name: minted}
-	if err := s.client.Get(ctx, key, src); err != nil {
+	src, err := r.opts.GetSecret(ctx, key)
+	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return fmt.Errorf("%w: %s", errKubeconfigPending, minted)
 		}
@@ -106,11 +106,11 @@ func (s *Subroutine) syncKubeconfig(ctx context.Context, st *state, inst module.
 	}
 
 	dst := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
-		Name:      module.KubeconfigSecretName(mod.Name, kc.Name),
+		Name:      pmmodule.KubeconfigSecretName(mod.Name, kc.Name),
 		Namespace: inst.Component.Namespace,
 	}}
 	if _, err := controllerutil.CreateOrUpdate(ctx, cl, dst, func() error {
-		dst.Labels = module.ModuleSelector(mod, inst.Cluster.ClusterID)
+		dst.Labels = pmmodule.ModuleSelector(mod, inst.Cluster.ClusterID)
 		dst.Type = src.Type
 		dst.Data = src.Data
 		return nil
@@ -121,12 +121,12 @@ func (s *Subroutine) syncKubeconfig(ctx context.Context, st *state, inst module.
 }
 
 // kubeconfigTarget resolves which kcp endpoint a kubeconfig is minted against.
-func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployv1alpha1.ModuleKubeconfig, inst module.Instance) (operatorv1alpha1.KubeconfigTarget, error) {
-	pm := st.platformMesh
+func (r *reconciler) kubeconfigTarget(kc pmdeployv1alpha1.ModuleKubeconfig, inst pmmodule.Instance) (operatorv1alpha1.KubeconfigTarget, error) {
+	pm := r.pm
 
 	switch kc.Target {
 	case pmdeployv1alpha1.KubeconfigTargetFrontProxy:
-		name, err := s.singleTarget(pm.Name, components.FrontProxy, kc.Name, func(clusterID string) string {
+		name, err := r.singleTarget(pm.Name, components.FrontProxy, kc.Name, func(clusterID string) string {
 			return names.FrontProxy(pm.Name, pm.Spec.Topology.FrontProxy.Name, clusterID)
 		})
 		if err != nil {
@@ -135,7 +135,7 @@ func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployv1alpha1.ModuleKubec
 		return operatorv1alpha1.KubeconfigTarget{FrontProxyRef: &corev1.LocalObjectReference{Name: name}}, nil
 
 	case pmdeployv1alpha1.KubeconfigTargetRootShard:
-		name, err := s.singleTarget(pm.Name, components.RootShard, kc.Name, func(clusterID string) string {
+		name, err := r.singleTarget(pm.Name, components.RootShard, kc.Name, func(clusterID string) string {
 			return names.RootShard(pm.Name, pm.Spec.Topology.RootShard.Name, clusterID)
 		})
 		if err != nil {
@@ -161,8 +161,8 @@ func (s *Subroutine) kubeconfigTarget(st *state, kc pmdeployv1alpha1.ModuleKubec
 // singleTarget resolves a component that must be engaged on exactly one
 // cluster. Several front proxies would each need their own kubeconfig, which
 // the payload cannot express yet.
-func (s *Subroutine) singleTarget(pm, component, kubeconfig string, name func(clusterID string) string) (string, error) {
-	engaged := s.registry.ClustersFor(pm, component)
+func (r *reconciler) singleTarget(pm, component, kubeconfig string, name func(clusterID string) string) (string, error) {
+	engaged := r.opts.ClustersFor(pm, component)
 	switch len(engaged) {
 	case 1:
 		return name(engaged[0].ClusterID), nil

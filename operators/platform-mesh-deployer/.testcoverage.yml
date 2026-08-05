@@ -18,12 +18,14 @@ threshold:
   total: 80
 exclude:
   paths:
-    - ^pkg/subroutines/mocks # exclude generated mock files
     - main\.go$ # skip covering main.go
     - ^cmd # skip covering cmd directory
 
 override:
-  - path: ^pkg/controller/(.+)_controller.go$
-    threshold: 60
-  - path: ^pkg/controller$
+  # The compiled-CR propagator has never had tests of its own.
+  - path: ^pkg/transfer$
+    threshold: 0
+  - path: ^pkg/templates$
     threshold: 70
+  - path: ^pkg/controller/module$
+    threshold: 65

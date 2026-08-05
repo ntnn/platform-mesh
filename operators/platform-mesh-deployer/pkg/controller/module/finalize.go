@@ -14,18 +14,19 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package modules
+package module
 
 import (
 	"context"
+	"fmt"
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
+	pmmodule "go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
-	"go.platform-mesh.io/subroutines"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	ctrlruntimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 // Finalizer keeps a Module around until its objects are gone from every
@@ -33,25 +34,42 @@ import (
 // config plane, so without this the workloads leak.
 const Finalizer = "deploy.platform-mesh.io/module-workloads"
 
-func (s *Subroutine) Finalizers(ctrlruntimeclient.Object) []string {
-	return []string{Finalizer}
+func (r *reconciler) ensureFinalizer(ctx context.Context) (bool, error) {
+	if controllerutil.ContainsFinalizer(r.mod, Finalizer) {
+		return true, nil
+	}
+	controllerutil.AddFinalizer(r.mod, Finalizer)
+	if err := r.opts.UpdateModule(ctx, r.mod); err != nil {
+		return false, fmt.Errorf("adding finalizer: %w", err)
+	}
+	// The update re-triggers the watch, so the rest runs on the next pass
+	// against an object whose resourceVersion the status patch agrees with.
+	return false, nil
 }
 
-// Finalize removes every object the module applied, on every cluster the
+// finalize removes every object the module applied, on every cluster the
 // PlatformMesh has engaged. It deliberately looks wider than the module's last
 // known placement: a cluster that dropped out of the fan-out earlier may still
 // be holding objects.
-func (s *Subroutine) Finalize(ctx context.Context, obj ctrlruntimeclient.Object) (subroutines.Result, error) {
-	mod := obj.(*pmdeployv1alpha1.Module)
+func (r *reconciler) finalize(ctx context.Context) (reconcile.Result, error) {
+	if !controllerutil.ContainsFinalizer(r.mod, Finalizer) {
+		return reconcile.Result{}, nil
+	}
 
+	mod := r.mod
 	kinds := appliedKinds(mod)
-	for _, c := range s.registry.AllClustersFor(mod.Spec.PlatformMeshRef.Name) {
+	for _, c := range r.opts.AllClustersFor(mod.Spec.PlatformMeshRef.Name) {
 		if err := sync.Prune(ctx, c.Cluster.GetClient(), kinds,
-			module.ModuleSelector(mod, c.ClusterID), nil); err != nil {
-			return subroutines.Result{}, err
+			pmmodule.ModuleSelector(mod, c.ClusterID), nil); err != nil {
+			return reconcile.Result{}, fmt.Errorf("pruning on cluster %q: %w", c.ClusterID, err)
 		}
 	}
-	return subroutines.OK(), nil
+
+	controllerutil.RemoveFinalizer(mod, Finalizer)
+	if err := r.opts.UpdateModule(ctx, mod); err != nil {
+		return reconcile.Result{}, fmt.Errorf("removing finalizer: %w", err)
+	}
+	return reconcile.Result{}, nil
 }
 
 // appliedKinds are the kinds a module's objects can have. The payload is only

@@ -15,7 +15,7 @@
 version: '3'
 
 includes:
-  # Shared go-installable tooling (controller-gen, golangci-lint, mockery),
+  # Shared go-installable tooling (controller-gen, golangci-lint),
   # installed once into the root bin/ and reused by every component.
   tools:
     taskfile: ../../tools/Taskfile.yaml
@@ -39,11 +39,6 @@ tasks:
       - task: tools:generate-deepcopy
         vars:
           PATH: /deploy/...
-  generate:mocks:
-    desc: Generate mocks using mockery
-    deps: [tools:mockery]
-    cmds:
-      - "{{.BIN}}/mockery"
   build:
     desc: Build the platform-mesh-deployer.
     cmds:
