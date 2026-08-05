@@ -14,7 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+// Package transfer copies the compiled kcp-operator CRs from the config plane
+// to the workload cluster they were compiled for, along with the Secrets and
+// ConfigMaps kcp-operator generated for them, and reflects their status back.
+package transfer
 
 import (
 	"context"
@@ -22,7 +25,7 @@ import (
 	"time"
 
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/sync"
 
 	corev1 "k8s.io/api/core/v1"
@@ -50,23 +53,22 @@ var compiledKinds = []string{
 	"CompiledVirtualWorkspace",
 }
 
-// CopyReconciler copies compiled CRs from the config plane to the workload
-// cluster they were compiled for, and reflects their status back.
-type CopyReconciler struct {
+// Controller registers one reconciler per compiled kind.
+type Controller struct {
 	registry *clusters.Registry
 }
 
-func NewCopyReconciler(_ mcmanager.Manager, registry *clusters.Registry) *CopyReconciler {
-	return &CopyReconciler{registry: registry}
+func New(registry *clusters.Registry) *Controller {
+	return &Controller{registry: registry}
 }
 
-func (r *CopyReconciler) SetupWithManager(mgr mcmanager.Manager) error {
+func (r *Controller) SetupWithManager(mgr mcmanager.Manager) error {
 	local := mgr.GetLocalManager()
 	for _, kind := range compiledKinds {
 		gvk := deployv1alpha1.SchemeGroupVersion.WithKind(kind)
 		obj := &unstructured.Unstructured{}
 		obj.SetGroupVersionKind(gvk)
-		rec := &compiledCopy{gvk: gvk, local: local.GetClient(), registry: r.registry}
+		rec := &compiled{gvk: gvk, local: local.GetClient(), registry: r.registry}
 		if err := ctrl.NewControllerManagedBy(local).
 			For(obj).
 			Named("copy-" + kind).
@@ -78,13 +80,13 @@ func (r *CopyReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 	return nil
 }
 
-type compiledCopy struct {
+type compiled struct {
 	gvk      schema.GroupVersionKind
 	local    ctrlruntimeclient.Client
 	registry *clusters.Registry
 }
 
-func (r *compiledCopy) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+func (r *compiled) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	src := &unstructured.Unstructured{}
 	src.SetGroupVersionKind(r.gvk)
 	if err := r.local.Get(ctx, req.NamespacedName, src); err != nil {
@@ -113,8 +115,8 @@ func (r *compiledCopy) Reconcile(ctx context.Context, req reconcile.Request) (re
 }
 
 // targetCluster resolves the workload cluster of a compiled CR from its deployer labels.
-func (r *compiledCopy) targetCluster(ctx context.Context, labels map[string]string) cluster.Cluster {
-	pm, component, clusterID := labels[topology.LabelPlatformMesh], labels[topology.LabelComponent], labels[topology.LabelCluster]
+func (r *compiled) targetCluster(ctx context.Context, labels map[string]string) cluster.Cluster {
+	pm, component, clusterID := labels[components.LabelPlatformMesh], labels[components.LabelComponent], labels[components.LabelCluster]
 	if pm == "" || component == "" || clusterID == "" {
 		return nil
 	}
@@ -130,7 +132,7 @@ func (r *compiledCopy) targetCluster(ctx context.Context, labels map[string]stri
 const kcpOperatorLabelPrefix = "operator.kcp.io/"
 
 // copyRelated copies kcp-operator's generated Secrets/ConfigMaps for the compiled CR to the workload.
-func (r *compiledCopy) copyRelated(ctx context.Context, workload ctrlruntimeclient.Client, namespace string, crLabels map[string]string) error {
+func (r *compiled) copyRelated(ctx context.Context, workload ctrlruntimeclient.Client, namespace string, crLabels map[string]string) error {
 	seenSecrets := map[string]struct{}{}
 	seenConfigMaps := map[string]struct{}{}
 	for k, v := range crLabels {

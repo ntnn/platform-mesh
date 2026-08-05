@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package templates
 
 import (
 	"context"
@@ -33,26 +33,25 @@ import (
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 )
 
-// TemplateReconciler holds a finalizer on a topology template for as long as a
-// PlatformMesh references it. Templates are shared, so deleting one can break
-// several installations at once.
-type TemplateReconciler struct {
+// Reconciler holds a finalizer on a topology template for as long as a
+// PlatformMesh references it.
+type Reconciler struct {
 	client ctrlruntimeclient.Client
 	kind   string
 	object func() ctrlruntimeclient.Object
 }
 
-// NewTemplateReconcilers returns one reconciler per topology template kind.
-func NewTemplateReconcilers(mgr mcmanager.Manager) []*TemplateReconciler {
+// NewReconcilers returns one reconciler per topology template kind.
+func NewReconcilers(mgr mcmanager.Manager) []*Reconciler {
 	local := mgr.GetLocalManager().GetClient()
-	out := make([]*TemplateReconciler, 0, len(templateKinds))
-	for _, tk := range templateKinds {
-		out = append(out, &TemplateReconciler{client: local, kind: tk.kind, object: tk.obj})
+	out := make([]*Reconciler, 0, len(Kinds))
+	for _, tk := range Kinds {
+		out = append(out, &Reconciler{client: local, kind: tk.Kind, object: tk.Object})
 	}
 	return out
 }
 
-func (r *TemplateReconciler) SetupWithManager(mgr mcmanager.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr mcmanager.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr.GetLocalManager()).
 		For(r.object()).
 		// A PlatformMesh gaining or dropping a reference changes whether
@@ -63,14 +62,14 @@ func (r *TemplateReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 		Complete(r)
 }
 
-func (r *TemplateReconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reconcile.Result, error) {
 	tpl := r.object()
 	if err := r.client.Get(ctx, req.NamespacedName, tpl); err != nil {
 		return reconcile.Result{}, ctrlruntimeclient.IgnoreNotFound(err)
 	}
 
-	using, err := platformMeshesUsing(ctx, r.client, templateKey{
-		kind: r.kind, namespace: req.Namespace, name: req.Name,
+	using, err := PlatformMeshesUsing(ctx, r.client, Key{
+		Kind: r.kind, Namespace: req.Namespace, Name: req.Name,
 	})
 	if err != nil {
 		return reconcile.Result{}, err

@@ -27,6 +27,8 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/templates"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/transfer"
 
 	mcmanager "sigs.k8s.io/multicluster-runtime/pkg/manager"
 	"sigs.k8s.io/multicluster-runtime/pkg/multicluster"
@@ -86,14 +88,14 @@ func Setup(mgr mcmanager.Manager, cfg Config) error {
 		if err := controller.NewPlatformMeshReconciler(mgr, registry, access).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up config controller: %w", err)
 		}
-		for _, r := range controller.NewTemplateReconcilers(mgr) {
+		for _, r := range templates.NewReconcilers(mgr) {
 			if err := r.SetupWithManager(mgr); err != nil {
 				return fmt.Errorf("setting up template controller: %w", err)
 			}
 		}
 	}
 	if cfg.controllerEnabled(ControllerCopy) {
-		if err := controller.NewCopyReconciler(mgr, registry).SetupWithManager(mgr); err != nil {
+		if err := transfer.New(registry).SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up copy controller: %w", err)
 		}
 	}

@@ -29,7 +29,6 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/module"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/names"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/exposure"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -124,7 +123,7 @@ func TestExposureCreatesRoutes(t *testing.T) {
 	assert.Equal(t, "eg", string(fp.Spec.ParentRefs[0].Name))
 	assert.Equal(t, "envoy-gateway-system", string(*fp.Spec.ParentRefs[0].Namespace))
 	assert.Equal(t, "passthrough", string(*fp.Spec.ParentRefs[0].SectionName))
-	assert.Equal(t, components.FrontProxy, fp.Labels[topology.LabelComponent])
+	assert.Equal(t, components.FrontProxy, fp.Labels[components.LabelComponent])
 }
 
 func TestExposureNoStacksNoRoutes(t *testing.T) {
@@ -157,9 +156,9 @@ func TestExposureTeardownStale(t *testing.T) {
 			Name:      "fp-gone-gw",
 			Namespace: "pm",
 			Labels: map[string]string{
-				topology.LabelPlatformMesh: "customer-a",
-				topology.LabelComponent:    components.FrontProxy,
-				topology.LabelCluster:      "gone",
+				components.LabelPlatformMesh: "customer-a",
+				components.LabelComponent:    components.FrontProxy,
+				components.LabelCluster:      "gone",
 			},
 		},
 	}
@@ -190,7 +189,7 @@ func TestExposureTeardownStale(t *testing.T) {
 	require.NoError(t, fpCl.List(context.Background(), list))
 	require.Len(t, list.Items, 1)
 	assert.Equal(t, names.FrontProxy("customer-a", "fp", "east")+"-gw", list.Items[0].Name)
-	assert.Equal(t, "east", list.Items[0].Labels[topology.LabelCluster])
+	assert.Equal(t, "east", list.Items[0].Labels[components.LabelCluster])
 }
 
 func TestExposureTeardownKeepsModuleRoutes(t *testing.T) {

@@ -14,7 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+// Package templates resolves which PlatformMeshes reference a topology
+// template and holds an in-use finalizer on the ones that are referenced.
+// Templates are shared, so deleting one can break several installations.
+package templates
 
 import (
 	"context"
@@ -26,18 +29,21 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-// templateKey identifies a template CR by kind and location.
-type templateKey struct {
-	kind      string
-	namespace string
-	name      string
+// Key identifies one template.
+type Key struct {
+	Kind      string
+	Namespace string
+	Name      string
 }
 
-// templateKinds are the topology template kinds a PlatformMesh references.
-var templateKinds = []struct {
-	kind string
-	obj  func() ctrlruntimeclient.Object
-}{
+// Kind is one topology template kind, with a constructor for its empty object.
+type Kind struct {
+	Kind   string
+	Object func() ctrlruntimeclient.Object
+}
+
+// Kinds are the topology template kinds a PlatformMesh references.
+var Kinds = []Kind{
 	{"RootShardTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.RootShardTemplate{} }},
 	{"ShardTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.ShardTemplate{} }},
 	{"FrontProxyTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.FrontProxyTemplate{} }},
@@ -45,10 +51,10 @@ var templateKinds = []struct {
 	{"VirtualWorkspaceTemplate", func() ctrlruntimeclient.Object { return &pmdeployv1alpha1.VirtualWorkspaceTemplate{} }},
 }
 
-// templateRefs are the templates a PlatformMesh references, with a nil
-// namespace on a reference defaulted to the PlatformMesh's own.
-func templateRefs(pm *pmdeployv1alpha1.PlatformMesh) map[templateKey]struct{} {
-	out := map[templateKey]struct{}{}
+// Refs are the templates a PlatformMesh references, with a nil namespace on a
+// reference defaulted to the PlatformMesh's own.
+func Refs(pm *pmdeployv1alpha1.PlatformMesh) map[Key]struct{} {
+	out := map[Key]struct{}{}
 	add := func(kind string, ref *pmdeployv1alpha1.TemplateReference) {
 		if ref == nil {
 			return
@@ -57,7 +63,7 @@ func templateRefs(pm *pmdeployv1alpha1.PlatformMesh) map[templateKey]struct{} {
 		if namespace == "" {
 			namespace = pm.Namespace
 		}
-		out[templateKey{kind: kind, namespace: namespace, name: ref.Name}] = struct{}{}
+		out[Key{Kind: kind, Namespace: namespace, Name: ref.Name}] = struct{}{}
 	}
 
 	t := pm.Spec.Topology
@@ -74,16 +80,16 @@ func templateRefs(pm *pmdeployv1alpha1.PlatformMesh) map[templateKey]struct{} {
 	return out
 }
 
-// platformMeshesUsing lists the PlatformMeshes referencing a template. A
+// PlatformMeshesUsing lists the PlatformMeshes referencing a template. A
 // template is shared, so this is not limited to one.
-func platformMeshesUsing(ctx context.Context, c ctrlruntimeclient.Client, key templateKey) ([]pmdeployv1alpha1.PlatformMesh, error) {
+func PlatformMeshesUsing(ctx context.Context, c ctrlruntimeclient.Client, key Key) ([]pmdeployv1alpha1.PlatformMesh, error) {
 	list := &pmdeployv1alpha1.PlatformMeshList{}
 	if err := c.List(ctx, list); err != nil {
 		return nil, err
 	}
 	var out []pmdeployv1alpha1.PlatformMesh
 	for i := range list.Items {
-		if _, ok := templateRefs(&list.Items[i])[key]; ok {
+		if _, ok := Refs(&list.Items[i])[key]; ok {
 			out = append(out, list.Items[i])
 		}
 	}
@@ -99,12 +105,12 @@ func enqueueTemplatesOfPlatformMesh(kind string) handler.MapFunc {
 			return nil
 		}
 		var reqs []reconcile.Request
-		for key := range templateRefs(pm) {
-			if key.kind != kind {
+		for key := range Refs(pm) {
+			if key.Kind != kind {
 				continue
 			}
 			reqs = append(reqs, reconcile.Request{NamespacedName: ctrlruntimeclient.ObjectKey{
-				Namespace: key.namespace, Name: key.name,
+				Namespace: key.Namespace, Name: key.Name,
 			}})
 		}
 		return reqs

@@ -28,6 +28,7 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/ready"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/rootstructure"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/templates"
 	"go.platform-mesh.io/subroutines"
 	"go.platform-mesh.io/subroutines/conditions"
 	"go.platform-mesh.io/subroutines/lifecycle"
@@ -84,9 +85,9 @@ func (r *PlatformMeshReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 		// status, which the topology merges into the FrontProxy.
 		Watches(&pmdeployv1alpha1.Module{}, handler.EnqueueRequestsFromMapFunc(enqueuePlatformMeshOfModule()))
 
-	for _, tk := range templateKinds {
-		b = b.Watches(tk.obj(), handler.EnqueueRequestsFromMapFunc(
-			enqueuePlatformMeshesUsingTemplate(local.GetClient(), tk.kind)))
+	for _, tk := range templates.Kinds {
+		b = b.Watches(tk.Object(), handler.EnqueueRequestsFromMapFunc(
+			enqueuePlatformMeshesUsingTemplate(local.GetClient(), tk.Kind)))
 	}
 
 	return b.
@@ -99,8 +100,8 @@ func (r *PlatformMeshReconciler) SetupWithManager(mgr mcmanager.Manager) error {
 // referencing it, which several may.
 func enqueuePlatformMeshesUsingTemplate(c ctrlruntimeclient.Client, kind string) handler.MapFunc {
 	return func(ctx context.Context, obj ctrlruntimeclient.Object) []reconcile.Request {
-		key := templateKey{kind: kind, namespace: obj.GetNamespace(), name: obj.GetName()}
-		using, err := platformMeshesUsing(ctx, c, key)
+		key := templates.Key{Kind: kind, Namespace: obj.GetNamespace(), Name: obj.GetName()}
+		using, err := templates.PlatformMeshesUsing(ctx, c, key)
 		if err != nil {
 			return nil
 		}

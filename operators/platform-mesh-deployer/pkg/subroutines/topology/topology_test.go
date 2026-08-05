@@ -126,9 +126,9 @@ func TestReconcileRootShard(t *testing.T) {
 	assert.Equal(t, "fp.customer-a.example.com", rs.Spec.External.Hostname)
 	assert.Equal(t, uint32(6443), rs.Spec.External.Port)
 	assert.Equal(t, "https://kcp.customer-a.example.com:6443", rs.Spec.ShardBaseURL)
-	assert.Equal(t, "customer-a", rs.Labels[topology.LabelPlatformMesh])
-	assert.Equal(t, components.RootShard, rs.Labels[topology.LabelComponent])
-	assert.Equal(t, "east", rs.Labels[topology.LabelCluster])
+	assert.Equal(t, "customer-a", rs.Labels[components.LabelPlatformMesh])
+	assert.Equal(t, components.RootShard, rs.Labels[components.LabelComponent])
+	assert.Equal(t, "east", rs.Labels[components.LabelCluster])
 	require.Len(t, rs.OwnerReferences, 1)
 	assert.Equal(t, "customer-a", rs.OwnerReferences[0].Name)
 }
@@ -152,9 +152,9 @@ func TestReconcileRootShardTeardownStale(t *testing.T) {
 			Name:      names.RootShard("customer-a", "root", "west"),
 			Namespace: "pm",
 			Labels: map[string]string{
-				topology.LabelPlatformMesh: "customer-a",
-				topology.LabelComponent:    components.RootShard,
-				topology.LabelCluster:      "west",
+				components.LabelPlatformMesh: "customer-a",
+				components.LabelComponent:    components.RootShard,
+				components.LabelCluster:      "west",
 			},
 		},
 	}
@@ -205,8 +205,8 @@ func TestReconcileShard(t *testing.T) {
 	require.NotNil(t, sh.Spec.Cache)
 	require.NotNil(t, sh.Spec.Cache.Reference)
 	assert.Equal(t, names.CacheServer("customer-a", "cache", "cache1"), sh.Spec.Cache.Reference.Name)
-	assert.Equal(t, components.Shard("eu"), sh.Labels[topology.LabelComponent])
-	assert.Equal(t, "west", sh.Labels[topology.LabelCluster])
+	assert.Equal(t, components.Shard("eu"), sh.Labels[components.LabelComponent])
+	assert.Equal(t, "west", sh.Labels[components.LabelCluster])
 }
 
 func TestReconcileFrontProxy(t *testing.T) {
@@ -233,8 +233,8 @@ func TestReconcileFrontProxy(t *testing.T) {
 	assert.Equal(t, names.RootShard("customer-a", "root", "east"), fp.Spec.RootShard.Reference.Name)
 	assert.Equal(t, "api.customer-a.example.com", fp.Spec.External.Hostname)
 	assert.Equal(t, uint32(443), fp.Spec.External.Port)
-	assert.Equal(t, components.FrontProxy, fp.Labels[topology.LabelComponent])
-	assert.Equal(t, "west", fp.Labels[topology.LabelCluster])
+	assert.Equal(t, components.FrontProxy, fp.Labels[components.LabelComponent])
+	assert.Equal(t, "west", fp.Labels[components.LabelCluster])
 }
 
 func TestReconcileCacheServer(t *testing.T) {
@@ -267,8 +267,8 @@ func TestReconcileCacheServer(t *testing.T) {
 	require.NotNil(t, cs.Spec.Etcd)
 	assert.Equal(t, []string{"https://cache-etcd-customer-a.pm:2379"}, cs.Spec.Etcd.Endpoints)
 	assert.Equal(t, "/customer-a/cache", cs.Spec.Etcd.Prefix)
-	assert.Equal(t, components.CacheServer, cs.Labels[topology.LabelComponent])
-	assert.Equal(t, "west", cs.Labels[topology.LabelCluster])
+	assert.Equal(t, components.CacheServer, cs.Labels[components.LabelComponent])
+	assert.Equal(t, "west", cs.Labels[components.LabelCluster])
 }
 
 func TestReconcileVirtualWorkspace(t *testing.T) {
@@ -295,8 +295,8 @@ func TestReconcileVirtualWorkspace(t *testing.T) {
 	assert.Equal(t, names.RootShard("customer-a", "root", "east"), vw.Spec.Target.RootShardRef.Name)
 	assert.Equal(t, "vw.customer-a.example.com", vw.Spec.External.Hostname)
 	assert.Equal(t, uint32(443), vw.Spec.External.Port)
-	assert.Equal(t, components.VirtualWorkspace, vw.Labels[topology.LabelComponent])
-	assert.Equal(t, "east", vw.Labels[topology.LabelCluster])
+	assert.Equal(t, components.VirtualWorkspace, vw.Labels[components.LabelComponent])
+	assert.Equal(t, "east", vw.Labels[components.LabelCluster])
 }
 
 func TestReconcileVirtualWorkspaceEmbeddedSkipped(t *testing.T) {
@@ -340,7 +340,7 @@ func TestReconcileNamesAreUniquePerPlatformMesh(t *testing.T) {
 	// Each root shard belongs to exactly one PlatformMesh and points at its own front proxy.
 	byName := map[string]string{}
 	for _, rs := range list.Items {
-		byName[rs.Name] = rs.Labels[topology.LabelPlatformMesh]
+		byName[rs.Name] = rs.Labels[components.LabelPlatformMesh]
 	}
 	assert.Equal(t, map[string]string{
 		names.RootShard("customer-a", "root", "east"): "customer-a",
@@ -351,7 +351,7 @@ func TestReconcileNamesAreUniquePerPlatformMesh(t *testing.T) {
 	require.NoError(t, cl.List(t.Context(), fps, ctrlruntimeclient.InNamespace("pm")))
 	require.Len(t, fps.Items, 2)
 	for _, fp := range fps.Items {
-		pm := fp.Labels[topology.LabelPlatformMesh]
+		pm := fp.Labels[components.LabelPlatformMesh]
 		assert.Equal(t, names.RootShard(pm, "root", "east"), fp.Spec.RootShard.Reference.Name)
 	}
 }

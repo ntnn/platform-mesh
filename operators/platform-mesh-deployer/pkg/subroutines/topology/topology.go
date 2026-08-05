@@ -25,6 +25,7 @@ import (
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/celtemplate"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/subroutines"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -36,12 +37,6 @@ import (
 )
 
 const Name = "TopologySubroutine"
-
-const (
-	LabelPlatformMesh = "deploy.platform-mesh.io/platform-mesh"
-	LabelComponent    = "deploy.platform-mesh.io/component"
-	LabelCluster      = "deploy.platform-mesh.io/cluster"
-)
 
 type Subroutine struct {
 	client   ctrlruntimeclient.Client
@@ -117,9 +112,9 @@ func resolveEtcd(etcd *operatorv1alpha1.EtcdConfig, celCtx celtemplate.Context, 
 
 func labels(platformMesh, component, clusterID string) map[string]string {
 	return map[string]string{
-		LabelPlatformMesh: platformMesh,
-		LabelComponent:    component,
-		LabelCluster:      clusterID,
+		components.LabelPlatformMesh: platformMesh,
+		components.LabelComponent:    component,
+		components.LabelCluster:      clusterID,
 	}
 }
 
@@ -135,7 +130,7 @@ func (s *Subroutine) apply(ctx context.Context, pm *pmdeployv1alpha1.PlatformMes
 func (s *Subroutine) teardown(ctx context.Context, pm *pmdeployv1alpha1.PlatformMesh, component string, list ctrlruntimeclient.ObjectList, desired map[string]struct{}) error {
 	if err := s.client.List(ctx, list,
 		ctrlruntimeclient.InNamespace(pm.Namespace),
-		ctrlruntimeclient.MatchingLabels{LabelPlatformMesh: pm.Name, LabelComponent: component},
+		ctrlruntimeclient.MatchingLabels{components.LabelPlatformMesh: pm.Name, components.LabelComponent: component},
 	); err != nil {
 		return err
 	}

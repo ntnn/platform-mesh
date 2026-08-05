@@ -26,6 +26,14 @@ const (
 	ShardPrefix      = "shards-"
 )
 
+// Labels key every object the deployer renders to the installation, component
+// and engaged cluster it was rendered for.
+const (
+	LabelPlatformMesh = "deploy.platform-mesh.io/platform-mesh"
+	LabelComponent    = "deploy.platform-mesh.io/component"
+	LabelCluster      = "deploy.platform-mesh.io/cluster"
+)
+
 // Shard returns the component name for a shard group.
 func Shard(group string) string {
 	return ShardPrefix + group

@@ -21,7 +21,7 @@ import (
 	"fmt"
 
 	pmdeployv1alpha1 "go.platform-mesh.io/apis/deploy/v1alpha1"
-	"go.platform-mesh.io/platform-mesh-deployer/pkg/subroutines/topology"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -47,9 +47,9 @@ func (g gatewayAPIRenderer) ensure(ctx context.Context, workload ctrlruntimeclie
 	route := &gwapiv1alpha2.TLSRoute{ObjectMeta: metav1.ObjectMeta{Name: p.name, Namespace: p.namespace}}
 	_, err := controllerutil.CreateOrUpdate(ctx, workload, route, func() error {
 		route.Labels = map[string]string{
-			topology.LabelPlatformMesh: p.pmName,
-			topology.LabelComponent:    p.component,
-			topology.LabelCluster:      p.clusterID,
+			components.LabelPlatformMesh: p.pmName,
+			components.LabelComponent:    p.component,
+			components.LabelCluster:      p.clusterID,
 		}
 		parent := gwapiv1alpha2.ParentReference{Name: gwapiv1.ObjectName(g.values.GatewayName)}
 		if g.values.GatewayNamespace != "" {
@@ -81,10 +81,10 @@ func (gatewayAPIRenderer) teardown(ctx context.Context, workload ctrlruntimeclie
 	list := &gwapiv1alpha2.TLSRouteList{}
 	if err := workload.List(ctx, list,
 		ctrlruntimeclient.InNamespace(namespace),
-		ctrlruntimeclient.MatchingLabels{topology.LabelPlatformMesh: pmName},
+		ctrlruntimeclient.MatchingLabels{components.LabelPlatformMesh: pmName},
 		// Select positively on a label only this subroutine writes; modules label
 		// their own routes with the same platform mesh and would be deleted too.
-		ctrlruntimeclient.HasLabels{topology.LabelComponent},
+		ctrlruntimeclient.HasLabels{components.LabelComponent},
 	); err != nil {
 		return err
 	}
