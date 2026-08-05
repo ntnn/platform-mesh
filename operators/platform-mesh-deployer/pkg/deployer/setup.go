@@ -25,6 +25,7 @@ import (
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/clusters"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/components"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller"
+	"go.platform-mesh.io/platform-mesh-deployer/pkg/controller/modulesetup"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/kcp"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/ocm"
 	"go.platform-mesh.io/platform-mesh-deployer/pkg/templates"
@@ -105,7 +106,11 @@ func Setup(mgr mcmanager.Manager, cfg Config) error {
 		}
 	}
 	if cfg.controllerEnabled(ControllerProvisioner) {
-		if err := controller.NewModuleSetupReconciler(mgr, access, cfg.Resolver).SetupWithManager(mgr); err != nil {
+		c, err := modulesetup.NewControllerFor(mgr, access, cfg.Resolver)
+		if err != nil {
+			return fmt.Errorf("building provisioner controller: %w", err)
+		}
+		if err := c.SetupWithManager(mgr); err != nil {
 			return fmt.Errorf("setting up provisioner controller: %w", err)
 		}
 	}

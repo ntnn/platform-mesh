@@ -56,15 +56,6 @@ func module(name, platformMesh string) *pmdeployv1alpha1.Module {
 	}
 }
 
-func moduleSetup(name, platformMesh string) *pmdeployv1alpha1.ModuleSetup {
-	return &pmdeployv1alpha1.ModuleSetup{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "pm"},
-		Spec: pmdeployv1alpha1.ModuleSetupSpec{
-			PlatformMeshRef: corev1.LocalObjectReference{Name: platformMesh},
-		},
-	}
-}
-
 func names(reqs []reconcile.Request) []string {
 	out := make([]string, 0, len(reqs))
 	for _, r := range reqs {
@@ -121,18 +112,6 @@ func TestEnqueueModulesOfPlatformMesh(t *testing.T) {
 	assert.ElementsMatch(t, []string{"acme", "other"}, names(got))
 }
 
-// The kcp side can only start once the root structure exists, so a PlatformMesh
-// change re-drives its setups.
-func TestEnqueueSetupsOfPlatformMesh(t *testing.T) {
-	cl := fake.NewClientBuilder().WithScheme(scheme(t)).WithObjects(
-		moduleSetup("acme", "customer-a"),
-		moduleSetup("elsewhere", "customer-b"),
-	).Build()
-
-	got := enqueueSetupsOfPlatformMesh(cl)(t.Context(), platformMesh("customer-a"))
-	assert.Equal(t, []string{"acme"}, names(got))
-}
-
 // A failing client must not enqueue anything rather than panic.
 func TestEnqueueWithFailingClient(t *testing.T) {
 	cl := fake.NewClientBuilder().WithScheme(runtime.NewScheme()).Build()
@@ -140,7 +119,6 @@ func TestEnqueueWithFailingClient(t *testing.T) {
 	signal := &metav1.PartialObjectMetadata{ObjectMeta: metav1.ObjectMeta{Name: "customer-a"}}
 	assert.Empty(t, enqueuePlatformMeshByName(cl)(t.Context(), signal))
 	assert.Empty(t, enqueueModulesOfPlatformMesh(cl)(t.Context(), platformMesh("customer-a")))
-	assert.Empty(t, enqueueSetupsOfPlatformMesh(cl)(t.Context(), platformMesh("customer-a")))
 }
 
 func ref(name, namespace string) *pmdeployv1alpha1.TemplateReference {
