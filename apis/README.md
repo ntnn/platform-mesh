@@ -19,6 +19,7 @@ The operators and services in this monorepo import these types instead of redefi
 | `search.platform-mesh.io` | `v1alpha1` | `SearchIndex` |
 | `backup.platform-mesh.io` | `v1alpha1` | `PlatformBackup`, `PlatformRestore` |
 | `migration.platform-mesh.io` | `v1alpha1` | `KcpMigration` |
+| `transfer.platform-mesh.io` | `v1alpha1` | `KubeconfigProvider`, `Transfer` |
 
 ## Getting started
 
