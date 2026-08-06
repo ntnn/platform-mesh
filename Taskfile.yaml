@@ -57,6 +57,7 @@ vars:
     - security-operator
     - tenancy-operator
     - terminal-controller-manager
+    - transfer-operator
 
     # services
     - iam-service

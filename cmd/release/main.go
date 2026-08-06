@@ -48,6 +48,8 @@ limitations under the License.
 //	terminal-controller-manager   terminal-controller-manager/v<X.Y.Z>
 //	                                               terminal-controller-manager.yml: signed image,
 //	                                               GitHub release, chart bump, SBOM, OCM
+//	transfer-operator  transfer-operator/v<X.Y.Z>  transfer-operator.yml: signed image,
+//	                                               GitHub release, chart bump, SBOM, OCM
 //	iam-service   iam-service/v<X.Y.Z>             iam-service.yml: signed image,
 //	                                               GitHub release, chart bump, SBOM, OCM
 //	kubernetes-graphql-gateway   kubernetes-graphql-gateway/v<X.Y.Z>
@@ -484,6 +486,7 @@ Components:
   search-operator              search-operator/v<X.Y.Z>              (signed image + release + chart + SBOM + OCM)
   search-service               search-service/v<X.Y.Z>               (signed image + release + chart + SBOM + OCM)
   terminal-controller-manager  terminal-controller-manager/v<X.Y.Z>  (signed image + release + chart + SBOM + OCM)
+  transfer-operator            transfer-operator/v<X.Y.Z>            (signed image + release + chart + SBOM + OCM)
   iam-service                  iam-service/v<X.Y.Z>                  (signed image + release + chart + SBOM + OCM)
   rebac-authz-webhook          rebac-authz-webhook/v<X.Y.Z>          (signed image + release + chart + SBOM + OCM)
   virtual-workspaces           virtual-workspaces/v<X.Y.Z>           (signed image + release + chart + SBOM + OCM)

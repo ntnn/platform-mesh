@@ -19,6 +19,7 @@ use (
 	./operators/security-operator
 	./operators/tenancy-operator
 	./operators/terminal-controller-manager
+	./operators/transfer-operator
 	./services/iam-service
 	./services/kubernetes-graphql-gateway
 	./services/rebac-authz-webhook
