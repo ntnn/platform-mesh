@@ -1717,10 +1717,8 @@ go.opentelemetry.io/proto/otlp v1.5.0/go.mod h1:keN8WnHxOy8PG0rQZjJJ5A2ebUoafqWp
 go.opentelemetry.io/proto/otlp v1.7.0/go.mod h1:fSKjH6YJ7HDlwzltzyMj036AJ3ejJLCgCSHGj4efDDo=
 go.opentelemetry.io/proto/otlp v1.7.1/go.mod h1:b2rVh6rfI/s2pHWNlB7ILJcRALpcNDzKhACevjI+ZnE=
 go.opentelemetry.io/proto/otlp v1.9.0/go.mod h1:xE+Cx5E/eEHw+ISFkwPLwCZefwVjY+pqKg1qcK03+/4=
-go.platform-mesh.io/account-operator v0.0.0-20260622214312-00032b10b96f/go.mod h1:CAm4BkaiJkSXmwDW6DgdEqHjnaZrlJIWXTVyJVwC+7A=
 go.platform-mesh.io/apis v0.0.0-20260622122527-e12b466d38ab/go.mod h1:oJLBH8/hifu56PqrnGQsr+n1ijw6jMwTKD+uRoFN8PM=
-go.platform-mesh.io/apis v0.0.3/go.mod h1:EVGHwmU3TD2fihHslTET/J94rW8LWagQzW8/vgRLAkA=
-go.platform-mesh.io/apis v0.0.4-0.20260806145628-e7fde50f913d/go.mod h1:EX3ovmUqmC0lSJPqF7Qzkaxe7SZ6HCvVMH+wGjdNLHQ=
+go.platform-mesh.io/apis v0.0.4-0.20260809143331-5dd7ec49ff6b/go.mod h1:OnOIHAkqrSMEhUrm877EpuSwMhaVDK4LeAdLyTKIXHM=
 go.platform-mesh.io/subroutines v0.0.0-20260622133610-fe2f9154f2a9/go.mod h1:AvyfyWGWHzL0mKS1oEuGzlTuVq28RoQpKDqdm6XArmc=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=
 go.uber.org/atomic v1.5.0/go.mod h1:sABNBOSYdrvTF6hTgEIbc7YasKWGhgEQZyfxyTvoXHQ=
