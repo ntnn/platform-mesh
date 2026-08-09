@@ -2,6 +2,8 @@ module go.platform-mesh.io/transfer-operator
 
 go 1.26.3
 
+replace go.platform-mesh.io/apis => ../../apis
+
 require (
 	sigs.k8s.io/controller-runtime v0.24.1
 	sigs.k8s.io/multicluster-runtime v0.24.1
