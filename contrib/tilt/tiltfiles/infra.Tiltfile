@@ -20,6 +20,7 @@ load("../helpers.py", "TILT_DIR", "kind_in", "profile_chart", "profile_values_fi
 load(
     "./settings.Tiltfile",
     "BASE_DOMAIN",
+    "KEYCLOAK",
     "KUBECTL",
     "NAMESPACE",
     "PORT",
@@ -85,7 +86,7 @@ infra = profile_chart(
             "frontProxy": {"resources": NO_REQUESTS},
             "etcd": {"resources": NO_REQUESTS, "backup": {"resources": NO_REQUESTS}},
         },
-        "keycloak": {"operator": {"resources": NO_REQUESTS}},
+        "keycloak": {"operator": {"enabled": KEYCLOAK, "resources": NO_REQUESTS}},
     },
 )
 k8s_yaml(infra)
@@ -169,17 +170,20 @@ k8s_resource(
     extra_pod_selectors=[{"cnpg.io/cluster": "platform-mesh-pg"}],
     pod_readiness="wait",
 )
-k8s_resource(
-    new_name="keycloak",
-    objects=select_objects(
-        infra,
-        lambda o: o["kind"] == "Keycloak" or (o["kind"] == "Secret" and o["metadata"]["name"].startswith("keycloak-")),
-    ),
-    resource_deps=["keycloak-operator", "postgres", "domain-certificate-ready"],
-    labels=["infra"],
-    extra_pod_selectors=[{"app": "keycloak"}],
-    pod_readiness="wait",
-)
+# Without Keycloak the chart still renders its HTTPRoute (it serves external
+# Keycloaks too); /keycloak then answers 503.
+if KEYCLOAK:
+    k8s_resource(
+        new_name="keycloak",
+        objects=select_objects(
+            infra,
+            lambda o: o["kind"] == "Keycloak" or (o["kind"] == "Secret" and o["metadata"]["name"].startswith("keycloak-")),
+        ),
+        resource_deps=["keycloak-operator", "postgres", "domain-certificate-ready"],
+        labels=["infra"],
+        extra_pod_selectors=[{"app": "keycloak"}],
+        pod_readiness="wait",
+    )
 k8s_resource(
     new_name="gateway",
     objects=select_objects(infra, kind_in(["Gateway", "HTTPRoute", "TLSRoute"])),
