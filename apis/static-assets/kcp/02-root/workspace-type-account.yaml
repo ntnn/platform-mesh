@@ -55,6 +55,6 @@ spec:
       - name: universal
         path: root
 {{- if ne .featureDisableOpenFGA "true" }}
-      - name: security
+      - name: openfga
         path: root
 {{- end }}

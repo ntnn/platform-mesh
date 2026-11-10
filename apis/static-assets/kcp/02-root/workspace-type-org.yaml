@@ -21,7 +21,7 @@ spec:
   extend:
     with:
 {{- if ne .featureDisableOpenFGA "true" }}
-    - name: security
+    - name: openfga
       path: root
 {{- end }}
 {{- if ne .featureDisableKeycloak "true" }}
