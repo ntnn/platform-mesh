@@ -206,6 +206,7 @@ func (r *KcpsetupSubroutine) createKcpResources(ctx context.Context, config *res
 	templateData["featureDisableContentConfigurations"] = HasFeatureToggle(inst, "feature-disable-contentconfigurations")
 	templateData["featureEnableTerminalControllerManager"] = HasFeatureToggle(inst, "feature-enable-terminal-controller-manager")
 	templateData["featureDisableKeycloak"] = HasFeatureToggle(inst, FeatureDisableKeycloak)
+	templateData["featureDisableOpenFGA"] = HasFeatureToggle(inst, FeatureDisableOpenFGA)
 	templateData["featureDisableIDPWebhook"] = strconv.FormatBool(idpWebhookDisabled(inst))
 	templateData["registrationAllowed"] = r.cfg.IDP.RegistrationAllowed
 	templateData["welcomeAdditionalRedirectUris"] = r.cfg.IDP.WelcomeAdditionalRedirectUris
