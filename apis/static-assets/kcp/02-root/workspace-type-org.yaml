@@ -17,13 +17,17 @@ kind: WorkspaceType
 metadata:
   name: org
 spec:
+{{- if or (ne .featureDisableOpenFGA "true") (ne .featureDisableKeycloak "true") }}
   extend:
     with:
+{{- if ne .featureDisableOpenFGA "true" }}
     - name: security
       path: root
+{{- end }}
 {{- if ne .featureDisableKeycloak "true" }}
     - name: keycloak
       path: root
+{{- end }}
 {{- end }}
   defaultAPIBindings:
     - export: core.platform-mesh.io
