@@ -37,6 +37,7 @@ type InviteStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:deprecatedversion:warning="core.platform-mesh.io/v1alpha1 Invite is deprecated, use keycloak.platform-mesh.io/v1alpha1 Invite"
 
 // Invite is the Schema for the invites API
 //

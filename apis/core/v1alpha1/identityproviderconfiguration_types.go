@@ -61,6 +61,7 @@ type IdentityProviderConfigurationStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:deprecatedversion:warning="core.platform-mesh.io/v1alpha1 IdentityProviderConfiguration is deprecated, use keycloak.platform-mesh.io/v1alpha1 IdentityProviderConfiguration"
 
 // IdentityProviderConfiguration is the Schema for the identityproviderconfigurations API
 //
