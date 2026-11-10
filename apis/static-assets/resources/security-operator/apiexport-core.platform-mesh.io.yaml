@@ -64,44 +64,44 @@ spec:
           - key: core.platform-mesh.io/client-name
             operator: Exists
   resources:
-    - group: core.platform-mesh.io
-      name: accountinfos
-      schema: v260622-69fb9437.accountinfos.core.platform-mesh.io
-      storage:
-        crd: {}
-    - group: core.platform-mesh.io
-      name: accounts
-      schema: v260622-69fb9437.accounts.core.platform-mesh.io
-      storage:
-        crd: {}
-    - group: core.platform-mesh.io
-      name: apiexportpolicies
-      schema: v260313-c8b198d.apiexportpolicies.core.platform-mesh.io
-      storage:
-        crd: {}
-    - group: core.platform-mesh.io
-      name: authorizationmodels
-      schema: v260112-5925c7e.authorizationmodels.core.platform-mesh.io
-      storage:
-        crd: {}
-    - group: core.platform-mesh.io
-      name: identityproviderconfigurations
-      schema: v260217-2c67392.identityproviderconfigurations.core.platform-mesh.io
-      storage:
-        crd: {}
-    - group: core.platform-mesh.io
-      name: invites
-      schema: v260213-fbdf981.invites.core.platform-mesh.io
-      storage:
-        crd: {}
-    - group: core.platform-mesh.io
-      name: platformmeshes
-      schema: v261102-f1aff4b1.platformmeshes.core.platform-mesh.io
-      storage:
-        crd: {}
-    - group: core.platform-mesh.io
-      name: stores
-      schema: v250718-a64f278.stores.core.platform-mesh.io
-      storage:
-        crd: {}
+  - group: core.platform-mesh.io
+    name: accountinfos
+    schema: v260622-69fb9437.accountinfos.core.platform-mesh.io
+    storage:
+      crd: {}
+  - group: core.platform-mesh.io
+    name: accounts
+    schema: v260622-69fb9437.accounts.core.platform-mesh.io
+    storage:
+      crd: {}
+  - group: core.platform-mesh.io
+    name: apiexportpolicies
+    schema: v260313-c8b198d.apiexportpolicies.core.platform-mesh.io
+    storage:
+      crd: {}
+  - group: core.platform-mesh.io
+    name: authorizationmodels
+    schema: v260112-5925c7e.authorizationmodels.core.platform-mesh.io
+    storage:
+      crd: {}
+  - group: core.platform-mesh.io
+    name: identityproviderconfigurations
+    schema: v261110-ea292166.identityproviderconfigurations.core.platform-mesh.io
+    storage:
+      crd: {}
+  - group: core.platform-mesh.io
+    name: invites
+    schema: v261110-5d883092.invites.core.platform-mesh.io
+    storage:
+      crd: {}
+  - group: core.platform-mesh.io
+    name: platformmeshes
+    schema: v261102-f1aff4b1.platformmeshes.core.platform-mesh.io
+    storage:
+      crd: {}
+  - group: core.platform-mesh.io
+    name: stores
+    schema: v250718-a64f278.stores.core.platform-mesh.io
+    storage:
+      crd: {}
 status: {}
