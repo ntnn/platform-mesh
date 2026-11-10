@@ -35,5 +35,7 @@ spec:
     types:
       - name: org
         path: root
+{{- if ne .featureDisableKeycloak "true" }}
   authenticationConfigurations:
   - name: orgs-authentication
+{{- end }}
