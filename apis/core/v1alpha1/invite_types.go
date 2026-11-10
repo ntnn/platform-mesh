@@ -39,6 +39,8 @@ type InviteStatus struct {
 // +kubebuilder:resource:scope=Cluster
 
 // Invite is the Schema for the invites API
+//
+// Deprecated: use keycloak.platform-mesh.io/v1alpha1 Invite.
 type Invite struct {
 	metav1.TypeMeta `json:",inline"`
 
@@ -68,6 +70,8 @@ func (in *Invite) SetConditions(c []metav1.Condition) {
 // +kubebuilder:object:root=true
 
 // InviteList contains a list of Invite
+//
+// Deprecated: use keycloak.platform-mesh.io/v1alpha1 InviteList.
 type InviteList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
