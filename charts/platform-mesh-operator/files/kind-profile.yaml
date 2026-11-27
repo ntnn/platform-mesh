@@ -162,6 +162,9 @@ data:
           dependsOn:
           - name: kcp-operator
           values:
+            hostAliases:
+              enabled: true
+              entries: *hostAliasesEntries
             keycloak:
               operator:
                 enabled: true
@@ -458,6 +461,9 @@ data:
           enabled: true
           dependsOn: []
           values:
+            hostAliases:
+              enabled: true
+              entries: *hostAliasesEntries
             auth:
               default:
                 clientId: welcome
